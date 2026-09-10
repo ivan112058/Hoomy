@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../auth/auth_controller.dart';
+import '../../data/repositories/repository_providers.dart';
 import '../shared/async_view.dart';
 import '../shared/song_tile.dart';
 
@@ -13,12 +13,12 @@ class StarredSongsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final client = ref.watch(subsonicClientProvider);
-    if (client == null) return const SizedBox.shrink();
+    final favorites = ref.watch(favoriteRepositoryProvider);
+    if (favorites == null) return const SizedBox.shrink();
     return PageScaffold(
       title: '我喜欢的歌曲',
       body: AsyncView(
-        future: client.getStarredSongs(),
+        load: favorites.getStarredSongs,
         emptyMessage: '还没有收藏的歌曲',
         itemBuilder: (context, songs) => ListView.separated(
           itemCount: songs.length,

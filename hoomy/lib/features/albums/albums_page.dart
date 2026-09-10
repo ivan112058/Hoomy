@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../auth/auth_controller.dart';
+import '../../data/repositories/repository_providers.dart';
 import '../shared/async_view.dart';
 import '../shared/cover_art.dart';
 
@@ -11,14 +11,14 @@ class AlbumsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final client = ref.watch(subsonicClientProvider);
-    if (client == null) return const SizedBox.shrink();
+    final albums = ref.watch(albumRepositoryProvider);
+    if (albums == null) return const SizedBox.shrink();
     return PageScaffold(
       title: '专辑',
       body: AsyncView(
-        future: client.getAlbumList2(size: 200),
+        load: albums.getAllAlbums,
         emptyMessage: '曲库是空的',
-        itemBuilder: (context, albums) => GridView.builder(
+        itemBuilder: (context, list) => GridView.builder(
           padding: const EdgeInsets.all(4),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
@@ -26,9 +26,9 @@ class AlbumsPage extends ConsumerWidget {
             mainAxisSpacing: 4,
             crossAxisSpacing: 4,
           ),
-          itemCount: albums.length,
+          itemCount: list.length,
           itemBuilder: (context, i) {
-            final album = albums[i];
+            final album = list[i];
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

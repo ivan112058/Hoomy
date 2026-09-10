@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/repositories/repository_providers.dart';
 import '../../data/subsonic/models.dart';
-import '../auth/auth_controller.dart';
 
 /// 歌曲行：标题 + 歌手·专辑 + 时长 + 收藏星标。
 class SongTile extends ConsumerStatefulWidget {
@@ -24,10 +24,10 @@ class _SongTileState extends ConsumerState<SongTile> {
   Future<void> _toggleStar() async {
     if (_toggling) return;
     setState(() => _toggling = true);
-    final client = ref.read(subsonicClientProvider);
+    final favorites = ref.read(favoriteRepositoryProvider);
     final starred = !_effectiveStarred;
     try {
-      await client?.setStarred(songId: widget.song.id, starred: starred);
+      await favorites?.setStarred(songId: widget.song.id, starred: starred);
       // 本地乐观更新；列表页下次刷新拿到服务端状态。
       setState(() => _localStarred = starred);
     } finally {

@@ -1,54 +1,92 @@
 import 'package:flutter/material.dart';
 
+import '../../data/subsonic/subsonic_client.dart';
+
 /// 列表页通用的异步骨架：加载中 / 错误重试 / 空态。
-class AsyncView<T> extends StatelessWidget {
+///
+/// [load] 只在首次构建与用户点「重试」时调用，不会因为父组件 rebuild 而重新取数。
+class AsyncView<T> extends StatefulWidget {
   const AsyncView({
     super.key,
-    required this.future,
+    required this.load,
     required this.itemBuilder,
     this.emptyMessage = '这里还没有内容',
   });
 
-  final Future<T> future;
+  final Future<T> Function() load;
   final Widget Function(BuildContext, T) itemBuilder;
   final String emptyMessage;
 
   @override
+  State<AsyncView<T>> createState() => _AsyncViewState<T>();
+}
+
+class _AsyncViewState<T> extends State<AsyncView<T>> {
+  late Future<T> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.load();
+  }
+
+  void _retry() {
+    final future = widget.load();
+    setState(() {
+      _future = future;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<T>(
-      future: future,
+      future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _ErrorView(message: snapshot.error.toString());
+          return _ErrorView(error: snapshot.error!, onRetry: _retry);
         }
         final data = snapshot.data;
-        if (data == null) {
-          return Center(child: Text(emptyMessage));
+        if (data == null || (data is Iterable && data.isEmpty)) {
+          return Center(child: Text(widget.emptyMessage));
         }
-        return itemBuilder(context, data);
+        return widget.itemBuilder(context, data as T);
       },
     );
   }
 }
 
+/// 取数失败：给出可读原因与「重试」，不留下空白页。
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message});
+  const _ErrorView({required this.error, required this.onRetry});
 
-  final String message;
+  final Object error;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Text(message, textAlign: TextAlign.center),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_describe(error), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            OutlinedButton(onPressed: onRetry, child: const Text('重试')),
+          ],
+        ),
       ),
     );
   }
 }
+
+/// 协议层已把服务端错误与网络错误映射成可读文案（见 `SubsonicClient`），
+/// 这里只负责取出该文案，避免把异常类型名暴露给用户。
+String _describe(Object error) =>
+    error is SubsonicException ? error.message : '$error';
 
 /// 页面级脚手架：统一 AppBar。
 class PageScaffold extends StatelessWidget {
