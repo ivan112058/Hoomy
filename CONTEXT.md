@@ -52,6 +52,14 @@ _Avoid_：播放列表 —— 那是 Playlist。
 **服务器证书（Server Certificate）**：
 仅接受标准证书校验，不支持信任自签证书。
 
+**平台（Platform）**：
+目标平台为 iOS、**Android TV**、macOS、Windows，优先级由高到低。
+Android **只做 TV，不做手机**；TV 无触屏，唯一输入是遥控器 D-pad，因此导航结构在 TV 上另行设计，不沿用底部 Tab；TV 上以聚焦/悬停反馈替代按压反馈。
+
+**底部 Tab**：
+iOS/macOS/Windows 的一级导航，位于主界面底部；其上方为迷你播放条。
+_Avoid_：在 Android TV 上沿用底部 Tab —— TV 导航另行设计。
+
 ## 视觉与交互约定
 
 对齐 SmartisanMusic-Revived 的设计语言。数值为约定值，实现方式不限。
@@ -84,5 +92,5 @@ _Avoid_：仅涟漪、灰色高亮。
 _Avoid_：黑胶、唱盘、唱针、搓碟。
 
 **迷你播放条**：
-位于底部 Tab 之上的常驻控制条，显示当前曲目封面、歌名、歌手与播放控制，不显示进度。
+位于主导航之上的常驻控制条，显示当前曲目封面、歌名、歌手与播放控制，不显示进度。
 _Avoid_：底部播放条、Now Playing Bar。
