@@ -90,9 +90,9 @@ class SubsonicClient {
     Map<String, dynamic>? params,
     ResponseType responseType = ResponseType.json,
   }) async {
-    final Response<Map<String, dynamic>> response;
+    final Response<dynamic> response;
     try {
-      response = await dio.get<Map<String, dynamic>>(
+      response = await dio.get<dynamic>(
         '${credentials.serverUrl}/rest/$endpoint',
         queryParameters: {..._authParams(), ...?params},
         options: Options(responseType: responseType),
@@ -101,21 +101,26 @@ class SubsonicClient {
       throw SubsonicException(-1, _describeNetworkError(e));
     }
 
+    // 正文用 dynamic 接住再自行判型：服务端返回 HTML（地址指向了别的服务）
+    // 或非对象 JSON 时，直接按 Map 取值会抛类型错误而不是可读提示。
     final body = response.data;
     if (body == null) throw const SubsonicException(-1, '服务器返回了空响应');
-    final envelope = body['subsonic-response'] as Map<String, dynamic>?;
-    if (envelope == null) {
+    if (body is! Map) {
       throw const SubsonicException(-1, '响应不是 Subsonic 格式，请确认这是 Navidrome 服务器');
     }
-    final status = envelope['status'] as String?;
-    if (status != 'ok') {
-      final error = envelope['error'] as Map<String, dynamic>?;
-      throw SubsonicException(
-        error?['code'] as int? ?? 0,
-        error?['message'] as String? ?? '未知错误',
-      );
+    final envelope = body['subsonic-response'];
+    if (envelope is! Map) {
+      throw const SubsonicException(-1, '响应不是 Subsonic 格式，请确认这是 Navidrome 服务器');
     }
-    return envelope;
+    if (envelope['status'] != 'ok') {
+      final error = envelope['error'];
+      final code = error is Map && error['code'] is int ? error['code'] as int : 0;
+      final message = error is Map && error['message'] is String
+          ? error['message'] as String
+          : '未知错误';
+      throw SubsonicException(code, message);
+    }
+    return envelope.cast<String, dynamic>();
   }
 
   String _describeNetworkError(DioException e) {
@@ -246,25 +251,52 @@ class SubsonicClient {
   /// OpenSubsonic 结构化歌词（Navidrome >= 0.51.0 解析内嵌 LRC/EQ 与侧车文件）。
   /// 返回 null 表示该歌曲没有结构化歌词（可回退 [getLyrics]）。
   ///
-  /// 响应结构为 `lyricsList.structuredLyrics[]`（可能多首，取第一首）。
-  /// 逐字（`cueLine`/`cue`）需扩展 v2 与 `enhanced=true`，当前未解析。
-  Future<SubsonicLyrics?> getStructuredLyrics(String songId) async {
+  /// 响应结构为 `lyricsList.structuredLyrics[]`；多语言歌词按 `kind` 区分，
+  /// MVP 只取主歌词（`main`），翻译/音译不在范围内（ADR-0004）。
+  ///
+  /// 逐字时间轴（`cueLine`/`cue`，songLyrics v2）需 `enhanced=true`；v1 服务端
+  /// 忽略未知参数，因此默认无条件下发，服务端不认识该端点时按「无结构化歌词」处理。
+  Future<SubsonicLyrics?> getStructuredLyrics(
+    String songId, {
+    bool enhanced = true,
+  }) async {
     try {
-      final data = await _get('getLyricsBySongId.view', params: {'id': songId});
-      final list =
-          (data['lyricsList'] as Map<String, dynamic>?)?['structuredLyrics']
-              as List<dynamic>?;
-      final candidates = list?.whereType<Map>().toList() ?? const <Map>[];
+      final data = await _get('getLyricsBySongId.view', params: {
+        'id': songId,
+        if (enhanced) 'enhanced': true,
+      });
+      final listNode = data['lyricsList'];
+      final raw = listNode is Map ? listNode['structuredLyrics'] : null;
+      final candidates = switch (raw) {
+        List l => l.whereType<Map>().toList(),
+        Map m => [m],
+        _ => const <Map>[],
+      };
       if (candidates.isEmpty) return null;
-      final parsed = SubsonicLyrics.fromJson(
-        candidates.first.cast<String, dynamic>(),
+
+      final main = candidates.firstWhere(
+        (e) => e['kind'] == null || e['kind'] == 'main',
+        orElse: () => candidates.first,
       );
-      return parsed.lines.isEmpty ? null : parsed;
+      final parsed = SubsonicLyrics.fromJson(main.cast<String, dynamic>());
+      return parsed.lines.isEmpty && parsed.cueLines.isEmpty ? null : parsed;
     } on SubsonicException catch (e) {
-      // 旧版服务端不认识该端点，回退旧接口。
+      // 旧版服务端不认识该端点（error 0/10/70）时视为「没有结构化歌词」。
       if (e.code == 0 || e.code == 10 || e.code == 70) return null;
       rethrow;
     }
+  }
+
+  /// 取歌词：结构化优先，无结果时回退纯文本 [getLyrics]。
+  /// 两者都无返回 null，由界面呈现「暂无歌词」。
+  Future<SubsonicLyrics?> getLyricsForSong({
+    required String songId,
+    String artist = '',
+    String title = '',
+  }) async {
+    final structured = await getStructuredLyrics(songId);
+    if (structured != null) return structured;
+    return getLyrics(artist: artist, title: title);
   }
 
   /// 旧版纯文本歌词（getLyrics）。返回 null 表示没有。
@@ -273,8 +305,11 @@ class SubsonicClient {
       if (artist.isNotEmpty) 'artist': artist,
       if (title.isNotEmpty) 'title': title,
     });
-    final lyrics = data['lyrics'] as Map<String, dynamic>?;
-    final text = lyrics?['text'] as String?;
+    final lyrics = data['lyrics'];
+    // Subsonic 规范的字段名是 value（响应里的 text 字段并不存在）。
+    final text = lyrics is Map && lyrics['value'] is String
+        ? lyrics['value'] as String
+        : null;
     if (text == null || text.trim().isEmpty) return null;
     final lines = text
         .split(RegExp(r'\r?\n'))

@@ -16,10 +16,12 @@
 
 歌词按**内容档位**渐进呈现，运行时依实际返回确定档位，不按服务端版本静态分档：
 
-1. 探测 `getOpenSubsonicExtensions` 的 `songLyrics` 版本，据此决定是否发 `enhanced=true`。
-2. 拿到 `structuredLyrics` 后：有 `cueLine`/`cue` → 逐字高亮；仅 `line[].start` → 逐行滚动；无 `start` → 纯文本静态。
-3. `getLyricsBySongId` 无结果时回退 `getLyrics`（纯文本），再无则不显示歌词。
-4. 客户端缓存**解析后**的歌词结构（时间轴），避免每次进歌词页重新解析。
+1. `getLyricsBySongId` **无条件下发 `enhanced=true`**，不先探测 `getOpenSubsonicExtensions` 的 `songLyrics` 版本。
+   _（2026-09-10 修订：原决策要求先探测再决定是否下发。实现时改为此形态——v1 服务端会忽略未知参数而非报错，探测省下的只是一次往返，却要多一个端点、一套缓存状态与一条降级分支；而逐字数据能否取到本就由服务端内容决定，与探测结果无关。若将来需要严格对齐探测语义，在取歌词处加探测即可，调用方无需改动。）_
+2. 多语言歌词按 `kind` 区分，**只取主歌词（`kind` 为 `main` 或未标注）**；翻译与音译不在 MVP 范围内。
+3. 拿到 `structuredLyrics` 后：有 `cueLine`/`cue` → 逐字高亮；仅 `line[].start` → 逐行滚动；无 `start` → 纯文本静态。
+4. `getLyricsBySongId` 无结果时回退 `getLyrics`（纯文本），再无则不显示歌词。
+5. 客户端缓存**解析后**的歌词结构（时间轴），避免每次进歌词页重新解析。
 
 ## 后果
 

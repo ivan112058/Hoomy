@@ -170,18 +170,24 @@ class SubsonicGenre {
   final int? albumCount;
 }
 
-/// 歌词：可能是纯文本（synced=false）或 LRC 行（synced=true）。
+/// 歌词：可能是纯文本（synced=false）、逐行 LRC（synced=true）或逐字（[cueLines] 非空）。
 class SubsonicLyrics {
-  const SubsonicLyrics({required this.synced, this.artist, this.title, this.lines = const []});
+  const SubsonicLyrics({
+    required this.synced,
+    this.artist,
+    this.title,
+    this.lines = const [],
+    this.cueLines = const [],
+  });
 
   factory SubsonicLyrics.fromJson(Map<String, dynamic> json) => SubsonicLyrics(
         synced: json['synced'] as bool? ?? false,
         // 服务端字段名为 displayArtist / displayTitle；无语言信息时 lang 为 "xxx"。
         artist: json['displayArtist'] as String?,
         title: json['displayTitle'] as String?,
-        lines: (json['line'] as List<dynamic>? ?? const [])
-            .map((e) => SubsonicLyricLine.fromJson(e as Map<String, dynamic>))
-            .toList(),
+        lines: _mapList(json['line'], SubsonicLyricLine.fromJson),
+        // songLyrics v2：逐字时间轴（需请求 enhanced=true）。
+        cueLines: _mapList(json['cueLine'], SubsonicCueLine.fromJson),
       );
 
   /// 纯文本歌词时 line 里没有时间戳，整体按静态文本渲染。
@@ -189,6 +195,9 @@ class SubsonicLyrics {
   final String? artist;
   final String? title;
   final List<SubsonicLyricLine> lines;
+
+  /// 逐字时间轴；为空表示没有词级数据（不代表没有歌词）。
+  final List<SubsonicCueLine> cueLines;
 }
 
 class SubsonicLyricLine {
@@ -205,6 +214,74 @@ class SubsonicLyricLine {
   final int? endMs;
   final String value;
 }
+
+/// 逐字歌词中的一行；[value] 是整行文本，词级时间轴在 [cues] 里。
+class SubsonicCueLine {
+  const SubsonicCueLine({
+    this.index,
+    this.startMs,
+    this.endMs,
+    this.agentId,
+    this.value = '',
+    this.cues = const [],
+  });
+
+  factory SubsonicCueLine.fromJson(Map<String, dynamic> json) => SubsonicCueLine(
+        index: _asInt(json['index']),
+        startMs: _asInt(json['start']),
+        endMs: _asInt(json['end']),
+        agentId: json['agentId'] as String?,
+        value: json['value'] as String? ?? '',
+        cues: _mapList(json['cue'], SubsonicCue.fromJson),
+      );
+
+  final int? index;
+  final int? startMs;
+  final int? endMs;
+  final String? agentId;
+  final String value;
+  final List<SubsonicCue> cues;
+}
+
+/// 逐字歌词的一个「词」。
+///
+/// `byteStart`/`byteEnd` 是所属行文本的 0 基闭区间 **UTF-8 字节**偏移，
+/// 切片必须按字节而非字符下标，否则中文歌词会错位（ADR-0004）。
+class SubsonicCue {
+  const SubsonicCue({
+    this.startMs,
+    this.endMs,
+    this.byteStart,
+    this.byteEnd,
+    required this.value,
+  });
+
+  factory SubsonicCue.fromJson(Map<String, dynamic> json) => SubsonicCue(
+        startMs: _asInt(json['start']),
+        endMs: _asInt(json['end']),
+        byteStart: _asInt(json['byteStart']),
+        byteEnd: _asInt(json['byteEnd']),
+        value: json['value'] as String? ?? '',
+      );
+
+  final int? startMs;
+  final int? endMs;
+  final int? byteStart;
+  final int? byteEnd;
+  final String value;
+}
+
+/// 容错解析「可能是单个对象、可能是数组、也可能缺失」的子节点。
+List<T> _mapList<T>(Object? v, T Function(Map<String, dynamic>) fromJson) =>
+    switch (v) {
+      null => const [],
+      List l => l
+          .whereType<Map>()
+          .map((e) => fromJson(e.cast<String, dynamic>()))
+          .toList(),
+      Map m => [fromJson(m.cast<String, dynamic>())],
+      _ => const [],
+    };
 
 int? _asInt(Object? v) => switch (v) {
       null => null,
