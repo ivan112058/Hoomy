@@ -6,7 +6,11 @@ plugins {
 
 android {
     namespace = "com.example.hoomy"
-    compileSdk = flutter.compileSdkVersion
+    // `flutter.compileSdkVersion` 当前是 36，但 flutter_secure_storage 11.0.0 的
+    // AAR metadata 要求依赖方 compileSdk ≥ 37，否则 checkDebugAarMetadata 直接失败。
+    // 只抬高 compileSdk（编译期可见 API），minSdk/targetSdk 保持 Flutter 默认，
+    // 因此不改变目标设备范围（Android TV 10 = API 29）。
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
