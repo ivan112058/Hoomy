@@ -1,10 +1,10 @@
 # 0002 - 播放内核统一使用 media_kit
 
-日期：2026-09-08　状态：已接受
+日期：2026-09-08　状态：已接受（**正在重新评估**：2026-09-10 决定砍掉 Windows，并重新审视「统一内核 vs 各平台最优实现」，结论将以新 ADR 记录）
 
 ## 背景
 
-Hoomy 需在 iOS、Android TV、macOS、Windows 四平台播放 flac/mp3/m4a 流。候选：media_kit（统一后端）、just_audio（移动端成熟、桌面靠桥接包）、各平台原生实现多套。
+Hoomy 需在 iOS、Android TV、macOS 播放 flac/mp3/m4a 流（原含 Windows，已于 2026-09-10 砍掉）。候选：media_kit（统一后端）、just_audio（移动端成熟、桌面靠桥接包）、各平台原生实现多套。
 
 ## 决策
 

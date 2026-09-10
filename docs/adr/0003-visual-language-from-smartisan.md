@@ -4,7 +4,7 @@
 
 ## 背景
 
-Hoomy 的视觉与交互以 `SmartisanMusic-Revived`（锤子音乐 8.1.0 的 Android 复刻，Kotlin + Compose，commit `428ac08`）为基准。但两者形态根本不同：参考项目是 **Android 原生 + 纯本地**（Manifest 无 `INTERNET`，MediaStore 扫本地文件，Media3 播放，歌词只解析音频文件内嵌标签），Hoomy 是 **Flutter 跨四平台 + 串流**（数据全部经 Subsonic API 取自 Navidrome，客户端拿不到音频文件）。
+Hoomy 的视觉与交互以 `SmartisanMusic-Revived`（锤子音乐 8.1.0 的 Android 复刻，Kotlin + Compose，commit `428ac08`）为基准。但两者形态根本不同：参考项目是 **Android 原生 + 纯本地**（Manifest 无 `INTERNET`，MediaStore 扫本地文件，Media3 播放，歌词只解析音频文件内嵌标签），Hoomy 是 **Flutter 跨三平台 + 串流**（数据全部经 Subsonic API 取自 Navidrome，客户端拿不到音频文件）。
 
 ## 决策
 
