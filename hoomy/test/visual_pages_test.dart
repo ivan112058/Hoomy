@@ -96,9 +96,9 @@ void main() {
     expect(find.byType(HoomyListRow), findsNWidgets(3));
 
     final dividers = find.byType(Divider);
-    expect(dividers, findsNWidgets(2));
-    final listWidth = tester.getSize(find.byType(ListView)).width;
-    for (var i = 0; i < 2; i++) {
+    expect(dividers, findsNWidgets(3));
+    final listWidth = tester.getSize(find.byType(CustomScrollView)).width;
+    for (var i = 0; i < 3; i++) {
       expect(tester.getSize(dividers.at(i)).width, listWidth, reason: '分隔线整宽无缩进');
       expect(tester.getSize(dividers.at(i)).height, 0.67);
     }
@@ -164,9 +164,12 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      final grid = tester.widget<GridView>(find.byType(GridView));
-      final delegate = grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+      // 分组后网格在 SliverGrid 里，列数与单元高度都固定，不随屏宽改变列数。
+      final grid = tester.widget<SliverGrid>(find.byType(SliverGrid).first);
+      final delegate =
+          grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
       expect(delegate.crossAxisCount, 3);
+      expect(delegate.mainAxisExtent, isNotNull, reason: '单元高度固定，不靠屏宽反推列数');
       expect(find.byType(ClipRRect), findsNothing, reason: '封面直角');
 
       final cover = tester.widget<AspectRatio>(find.byType(AspectRatio).first);

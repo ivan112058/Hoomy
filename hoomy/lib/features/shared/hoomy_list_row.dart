@@ -4,6 +4,47 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/hoomy_theme.dart';
 
+/// 一行加上其下分隔线的占位高度。
+///
+/// 分组列表按固定行高算 A–Z 快捷栏的跳转偏移，分隔线必须计入，
+/// 否则每组的实际高度会比计算值多出一条线。
+final kHoomyListRowExtent =
+    HoomyDimens.listRowHeight + HoomyDimens.dividerThickness;
+
+/// 行尾的整宽分隔线。
+///
+/// 高度锁成 [HoomyDimens.dividerThickness]，不跟随主题里 `Divider` 的
+/// `space`（默认 16dp）：分组列表按「行 + 线」算整组高度，放任 `space`
+/// 会让实际高度超出计算值，A–Z 快捷栏就跳不准。
+class HoomyRowDivider extends StatelessWidget {
+  const HoomyRowDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: HoomyDimens.dividerThickness,
+      child: Divider(height: HoomyDimens.dividerThickness),
+    );
+  }
+}
+
+/// 一行内容 + 其下整宽分隔线，总高恰为 [kHoomyListRowExtent]。
+///
+/// 分组列表按固定行高算 A–Z 快捷栏的跳转偏移；把「行 + 线」封在这里，
+/// 页面就不必各自拼 Column，也不会漏算分隔线使跳转错位。
+class HoomyDividedRow extends StatelessWidget {
+  const HoomyDividedRow({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [child, const HoomyRowDivider()],
+    );
+  }
+}
+
 /// 一行的按压状态。
 ///
 /// [foreground] 已由 [HoomyListRow] 按是否按下解析好：未按下是次文字色，

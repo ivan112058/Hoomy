@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/alphabet/alphabet.dart';
 import '../../core/theme/hoomy_theme.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../../data/subsonic/models.dart';
+import '../shared/alphabet_sectioned_view.dart';
 import '../shared/async_view.dart';
 import '../shared/hoomy_list_row.dart';
 
-/// 艺术家 Tab：全库歌手列表。
+/// 艺术家 Tab：全库歌手按拼音首字母分组的列表。
 class ArtistsPage extends ConsumerWidget {
   const ArtistsPage({super.key});
 
@@ -19,12 +22,11 @@ class ArtistsPage extends ConsumerWidget {
       body: AsyncView(
         load: artistRepository.getArtists,
         emptyMessage: '曲库是空的',
-        itemBuilder: (context, artists) => ListView.separated(
-          itemCount: artists.length,
-          separatorBuilder: (_, _) => const Divider(),
-          itemBuilder: (context, i) {
-            final artist = artists[i];
-            return HoomyListRow(
+        itemBuilder: (context, artists) => AlphabetSectionedList<SubsonicArtist>(
+          sections: buildAlphabetSections(artists, keyOf: (artist) => artist.name),
+          itemExtent: kHoomyListRowExtent,
+          itemBuilder: (context, artist, _) => HoomyDividedRow(
+            child: HoomyListRow(
               title: artist.name,
               trailing: (state) => Text(
                 '${artist.albumCount ?? 0} 张专辑',
@@ -33,8 +35,8 @@ class ArtistsPage extends ConsumerWidget {
                   color: state.foreground,
                 ),
               ),
-            );
-          },
+            ),
+          ),
         ),
       ),
     );
