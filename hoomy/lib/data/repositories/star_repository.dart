@@ -1,11 +1,11 @@
 import '../subsonic/models.dart';
 import '../subsonic/subsonic_client.dart';
 
-/// 收藏取数：收藏状态保存在服务端，跨设备同步。
+/// 收藏（Star）取数：收藏状态保存在服务端，跨设备同步。
 ///
 /// 写路径的乐观更新与失败回滚由界面层负责（票据 12），本类只做协议调用。
-class FavoriteRepository {
-  FavoriteRepository(this._client);
+class StarRepository {
+  StarRepository(this._client);
 
   final SubsonicClient _client;
 

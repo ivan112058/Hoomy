@@ -10,18 +10,18 @@ class PlaylistsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playlists = ref.watch(playlistRepositoryProvider);
-    if (playlists == null) return const SizedBox.shrink();
+    final playlistRepository = ref.watch(playlistRepositoryProvider);
+    if (playlistRepository == null) return const SizedBox.shrink();
     return PageScaffold(
       title: '播放列表',
       body: AsyncView(
-        load: playlists.getPlaylists,
+        load: playlistRepository.getPlaylists,
         emptyMessage: '服务器上还没有歌单',
-        itemBuilder: (context, list) => ListView.separated(
-          itemCount: list.length,
+        itemBuilder: (context, playlists) => ListView.separated(
+          itemCount: playlists.length,
           separatorBuilder: (_, _) => const Divider(height: 0.67, indent: 16),
           itemBuilder: (context, i) {
-            final playlist = list[i];
+            final playlist = playlists[i];
             return ListTile(
               title: Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: playlist.owner == null ? null : Text('by ${playlist.owner}'),

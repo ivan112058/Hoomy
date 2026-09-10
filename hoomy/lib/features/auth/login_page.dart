@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/auth/auth_controller.dart';
 import '../../data/subsonic/subsonic_client.dart';
-import 'auth_controller.dart';
 
 /// 登录页：服务器 URL + 用户名 + 密码。
 class LoginPage extends ConsumerStatefulWidget {

@@ -14,17 +14,17 @@ class SongsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final songs = ref.watch(songRepositoryProvider);
-    if (songs == null) return const SizedBox.shrink();
+    final songRepository = ref.watch(songRepositoryProvider);
+    if (songRepository == null) return const SizedBox.shrink();
     return PageScaffold(
       title: '歌曲',
       body: AsyncView(
-        load: songs.getAllSongs,
+        load: songRepository.getAllSongs,
         emptyMessage: '曲库是空的',
-        itemBuilder: (context, list) => ListView.separated(
-          itemCount: list.length,
+        itemBuilder: (context, songs) => ListView.separated(
+          itemCount: songs.length,
           separatorBuilder: (_, _) => const Divider(height: 0.67, indent: 16),
-          itemBuilder: (context, i) => SongTile(song: list[i]),
+          itemBuilder: (context, i) => SongTile(song: songs[i]),
         ),
       ),
     );

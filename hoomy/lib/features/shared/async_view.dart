@@ -83,8 +83,8 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-/// 协议层已把服务端错误与网络错误映射成可读文案（见 `SubsonicClient`），
-/// 这里只负责取出该文案，避免把异常类型名暴露给用户。
+/// `SubsonicException` 已由协议层映射成可读文案，优先取它；
+/// 其它异常退化为 `toString()`，只在开发期遇到，用于定位。
 String _describe(Object error) =>
     error is SubsonicException ? error.message : '$error';
 

@@ -24,10 +24,10 @@ class _SongTileState extends ConsumerState<SongTile> {
   Future<void> _toggleStar() async {
     if (_toggling) return;
     setState(() => _toggling = true);
-    final favorites = ref.read(favoriteRepositoryProvider);
+    final starRepository = ref.read(starRepositoryProvider);
     final starred = !_effectiveStarred;
     try {
-      await favorites?.setStarred(songId: widget.song.id, starred: starred);
+      await starRepository?.setStarred(songId: widget.song.id, starred: starred);
       // 本地乐观更新；列表页下次刷新拿到服务端状态。
       setState(() => _localStarred = starred);
     } finally {

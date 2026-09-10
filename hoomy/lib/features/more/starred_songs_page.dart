@@ -13,12 +13,12 @@ class StarredSongsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final favorites = ref.watch(favoriteRepositoryProvider);
-    if (favorites == null) return const SizedBox.shrink();
+    final starRepository = ref.watch(starRepositoryProvider);
+    if (starRepository == null) return const SizedBox.shrink();
     return PageScaffold(
       title: '我喜欢的歌曲',
       body: AsyncView(
-        load: favorites.getStarredSongs,
+        load: starRepository.getStarredSongs,
         emptyMessage: '还没有收藏的歌曲',
         itemBuilder: (context, songs) => ListView.separated(
           itemCount: songs.length,

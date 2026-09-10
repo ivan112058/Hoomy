@@ -1,5 +1,6 @@
 import '../subsonic/models.dart';
 import '../subsonic/subsonic_client.dart';
+import 'paged_fetch.dart';
 
 /// 歌曲取数：对上层暴露歌曲领域模型，不暴露协议响应结构。
 ///
@@ -13,35 +14,16 @@ class SongRepository {
   /// 单页条数。Navidrome 对 `search3` 没有硬上限；500 是实测曲库下两次请求的取值。
   static const pageSize = 500;
 
-  /// 曲库里的全部歌曲，按服务端自然顺序。
+  /// 曲库里的全部歌曲，按服务端自然顺序，且不含重复项。
   ///
-  /// 循环递增 `songOffset`，直到出现短页或空页为止。服务端若返回重叠页，
-  /// 按 id 去重且保留首次出现的顺序；若服务端忽略 `songOffset`（每页都相同），
-  /// 在整页重复时终止，避免死循环。因此结果里不会有重复歌曲。
-  Future<List<SubsonicSong>> getAllSongs() async {
-    final songs = <SubsonicSong>[];
-    final seenIds = <String>{};
-    var offset = 0;
-
-    while (true) {
-      final page = await _client.search3Songs(
-        songCount: pageSize,
-        songOffset: offset,
+  /// 循环递增 `songOffset`，直到出现短页或空页为止；重叠页按 id 去重，
+  /// 服务端忽略 offset 时在整页重复处终止（防死循环）。
+  Future<List<SubsonicSong>> getAllSongs() => fetchAllPages(
+        pageSize: pageSize,
+        fetchPage: (offset) => _client.search3Songs(
+          songCount: pageSize,
+          songOffset: offset,
+        ),
+        idOf: (song) => song.id,
       );
-      var added = 0;
-      for (final song in page) {
-        if (seenIds.add(song.id)) {
-          songs.add(song);
-          added++;
-        }
-      }
-      // 空页或短页：已经到达末尾。
-      if (page.length < pageSize) break;
-      // 防御：整页都是重复项说明服务端没有按 offset 翻页，继续下去会死循环。
-      if (added == 0) break;
-      offset += pageSize;
-    }
-
-    return songs;
-  }
 }

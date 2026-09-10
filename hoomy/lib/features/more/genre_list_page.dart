@@ -10,18 +10,18 @@ class GenreListPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final genres = ref.watch(genreRepositoryProvider);
-    if (genres == null) return const SizedBox.shrink();
+    final genreRepository = ref.watch(genreRepositoryProvider);
+    if (genreRepository == null) return const SizedBox.shrink();
     return PageScaffold(
       title: '风格',
       body: AsyncView(
-        load: genres.getGenres,
+        load: genreRepository.getGenres,
         emptyMessage: '曲库里还没有风格信息',
-        itemBuilder: (context, list) => ListView.separated(
-          itemCount: list.length,
+        itemBuilder: (context, genres) => ListView.separated(
+          itemCount: genres.length,
           separatorBuilder: (_, _) => const Divider(height: 0.67, indent: 16),
           itemBuilder: (context, i) {
-            final genre = list[i];
+            final genre = genres[i];
             return ListTile(
               title: Text(genre.name, maxLines: 1, overflow: TextOverflow.ellipsis),
               trailing: Text('${genre.songCount ?? 0} 首'),

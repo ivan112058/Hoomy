@@ -1,17 +1,16 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/repositories/album_repository.dart';
 import 'package:hoomy/data/repositories/artist_repository.dart';
 import 'package:hoomy/data/repositories/repository_providers.dart';
 import 'package:hoomy/data/repositories/song_repository.dart';
-import 'package:hoomy/data/subsonic/models.dart';
-import 'package:hoomy/data/subsonic/subsonic_client.dart';
 import 'package:hoomy/features/albums/albums_page.dart';
 import 'package:hoomy/features/artists/artists_page.dart';
-import 'package:hoomy/features/auth/auth_controller.dart';
 import 'package:hoomy/features/songs/songs_page.dart';
 
 import 'fake_transport.dart';
@@ -54,7 +53,29 @@ void main() {
     });
 
     testWidgets('取数失败显示可重试错误态，重试后恢复', (tester) async {
-      final repository = _FlakySongRepository();
+      // 同一仓库的第一次取数失败、第二次成功，验证「重试」真的重新取数。
+      final transport = FakeTransport();
+      var calls = 0;
+      transport.responder = (options) {
+        calls++;
+        if (calls == 1) {
+          throw DioException.connectionError(
+            requestOptions: options,
+            reason: 'Connection refused',
+          );
+        }
+        return jsonResponse({
+          'subsonic-response': {
+            'status': 'ok',
+            'searchResult3': {
+              'song': [
+                {'id': 's1', 'title': '晴天'},
+              ],
+            },
+          },
+        });
+      };
+      final repository = SongRepository(fakeClient(transport));
 
       await tester.pumpWidget(harness(
         const SongsPage(),
@@ -69,7 +90,7 @@ void main() {
       await tester.tap(find.text('重试'));
       await tester.pumpAndSettle();
 
-      expect(repository.calls, 2);
+      expect(calls, 2);
       expect(find.text('晴天'), findsOneWidget);
       expect(find.text('重试'), findsNothing);
     });
@@ -96,7 +117,7 @@ void main() {
     expect(find.text('范特西'), findsOneWidget);
   });
 
-  testWidgets('艺术家页经 ArtistRepository 显示歌手', (tester) async {
+  testWidgets('歌手列表页经 ArtistRepository 显示歌手', (tester) async {
     final transport = FakeTransport()
       ..ok('getArtists.view', {
         'artists': {
@@ -132,20 +153,4 @@ void main() {
 
     expect(find.text('曲库是空的'), findsOneWidget);
   });
-}
-
-/// 首次取数失败、重试成功的歌曲仓库，用于验证错误态与「重试」。
-class _FlakySongRepository extends SongRepository {
-  _FlakySongRepository() : super(fakeClient(FakeTransport()));
-
-  int calls = 0;
-
-  @override
-  Future<List<SubsonicSong>> getAllSongs() async {
-    calls++;
-    if (calls == 1) {
-      throw const SubsonicException(-1, '无法连接到服务器，请检查地址与网络');
-    }
-    return const [SubsonicSong(id: 's1', title: '晴天')];
-  }
 }

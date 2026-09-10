@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../features/auth/auth_controller.dart';
+import '../../data/auth/auth_controller.dart';
 
 /// 经 getCoverArt 拉取的封面图（服务端已解析文件内嵌封面）。
 class CoverArt extends ConsumerWidget {

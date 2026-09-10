@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/credentials/credential_store.dart';
-import '../../data/subsonic/subsonic_client.dart';
+import '../credentials/credential_store.dart';
+import '../subsonic/subsonic_client.dart';
 
 /// 全局登录态：null 表示未登录（显示登录页）。
 class AuthController extends AsyncNotifier<SubsonicCredentials?> {

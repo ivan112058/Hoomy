@@ -1,12 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../features/auth/auth_controller.dart';
+import '../auth/auth_controller.dart';
 import 'album_repository.dart';
 import 'artist_repository.dart';
-import 'favorite_repository.dart';
 import 'genre_repository.dart';
 import 'playlist_repository.dart';
 import 'song_repository.dart';
+import 'star_repository.dart';
 
 /// repository 的接线处：全部由当前登录用户的协议客户端派生，未登录时为 null。
 ///
@@ -38,7 +38,7 @@ final genreRepositoryProvider = Provider<GenreRepository?>((ref) {
   return client == null ? null : GenreRepository(client);
 });
 
-final favoriteRepositoryProvider = Provider<FavoriteRepository?>((ref) {
+final starRepositoryProvider = Provider<StarRepository?>((ref) {
   final client = ref.watch(subsonicClientProvider);
-  return client == null ? null : FavoriteRepository(client);
+  return client == null ? null : StarRepository(client);
 });

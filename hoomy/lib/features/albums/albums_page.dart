@@ -11,14 +11,14 @@ class AlbumsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final albums = ref.watch(albumRepositoryProvider);
-    if (albums == null) return const SizedBox.shrink();
+    final albumRepository = ref.watch(albumRepositoryProvider);
+    if (albumRepository == null) return const SizedBox.shrink();
     return PageScaffold(
       title: '专辑',
       body: AsyncView(
-        load: albums.getAllAlbums,
+        load: albumRepository.getAllAlbums,
         emptyMessage: '曲库是空的',
-        itemBuilder: (context, list) => GridView.builder(
+        itemBuilder: (context, albums) => GridView.builder(
           padding: const EdgeInsets.all(4),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
@@ -26,9 +26,9 @@ class AlbumsPage extends ConsumerWidget {
             mainAxisSpacing: 4,
             crossAxisSpacing: 4,
           ),
-          itemCount: list.length,
+          itemCount: albums.length,
           itemBuilder: (context, i) {
-            final album = list[i];
+            final album = albums[i];
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

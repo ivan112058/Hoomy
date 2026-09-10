@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/hoomy_theme.dart';
-import 'features/auth/auth_controller.dart';
+import 'data/auth/auth_controller.dart';
 import 'features/auth/login_page.dart';
 import 'features/shell/home_shell.dart';
 
