@@ -176,8 +176,9 @@ class SubsonicLyrics {
 
   factory SubsonicLyrics.fromJson(Map<String, dynamic> json) => SubsonicLyrics(
         synced: json['synced'] as bool? ?? false,
-        artist: json['artist'] as String?,
-        title: json['title'] as String?,
+        // 服务端字段名为 displayArtist / displayTitle；无语言信息时 lang 为 "xxx"。
+        artist: json['displayArtist'] as String?,
+        title: json['displayTitle'] as String?,
         lines: (json['line'] as List<dynamic>? ?? const [])
             .map((e) => SubsonicLyricLine.fromJson(e as Map<String, dynamic>))
             .toList(),

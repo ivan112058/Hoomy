@@ -243,20 +243,25 @@ class SubsonicClient {
 
   // ---- 歌词 ----
 
-  /// OpenSubsonic 结构化歌词（Navidrome >= 0.49 解析内嵌 LRC/EQ）。
+  /// OpenSubsonic 结构化歌词（Navidrome >= 0.51.0 解析内嵌 LRC/EQ 与侧车文件）。
   /// 返回 null 表示该歌曲没有结构化歌词（可回退 [getLyrics]）。
+  ///
+  /// 响应结构为 `lyricsList.structuredLyrics[]`（可能多首，取第一首）。
+  /// 逐字（`cueLine`/`cue`）需扩展 v2 与 `enhanced=true`，当前未解析。
   Future<SubsonicLyrics?> getStructuredLyrics(String songId) async {
     try {
       final data = await _get('getLyricsBySongId.view', params: {'id': songId});
-      final lyrics = data['lyrics'] as Map<String, dynamic>?;
-      if (lyrics == null) return null;
-      final parsed = SubsonicLyrics.fromJson(lyrics);
-      if (parsed.lines.isEmpty && (lyrics['displayArtist'] ?? '') == '' && (lyrics['displayTitle'] ?? '') == '') {
-        return null;
-      }
-      return parsed;
+      final list =
+          (data['lyricsList'] as Map<String, dynamic>?)?['structuredLyrics']
+              as List<dynamic>?;
+      final candidates = list?.whereType<Map>().toList() ?? const <Map>[];
+      if (candidates.isEmpty) return null;
+      final parsed = SubsonicLyrics.fromJson(
+        candidates.first.cast<String, dynamic>(),
+      );
+      return parsed.lines.isEmpty ? null : parsed;
     } on SubsonicException catch (e) {
-      // 旧版服务端不认识该端点（code 0 / 10 / 70 等），回退旧接口。
+      // 旧版服务端不认识该端点，回退旧接口。
       if (e.code == 0 || e.code == 10 || e.code == 70) return null;
       rethrow;
     }
@@ -285,7 +290,9 @@ class SubsonicClient {
         'size': ?size,
       });
 
-  Uri streamUri(String songId) => _mediaUri('stream.view', {'id': songId});
+  /// 播放原始流：`format=raw` 关闭服务端转码（ADR-0001）。
+  Uri streamUri(String songId) =>
+      _mediaUri('stream.view', {'id': songId, 'format': 'raw'});
 
   Uri _mediaUri(String endpoint, Map<String, dynamic> params) {
     final query = {..._authParams(), ...params};
