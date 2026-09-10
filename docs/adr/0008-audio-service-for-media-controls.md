@@ -21,6 +21,7 @@ ADR-0002 选定 `media_kit` 为统一播放内核。核实后发现一个会改�
 ## 后果
 
 - `audio_service` 改变了播放状态的持有位置：切片 3–8 都要建立在「`AudioHandler` 是播放状态权威」之上，不能各自直接持有 `Player`。
-- **iOS 是高风险项，且风险在 `audio_service` 一侧而非 `media_kit`**：已知 issue 包括「iOS 锁屏后音频停止」（OPEN 两年余未修）与「media_kit + audio_service 在 iOS 不工作」（Android 正常，维护者关闭但无修复）。因此 iOS 上线前必须真机验收三条路径：**锁屏、切到其他 App、锁屏超过 1 分钟**。
+- **已知 iOS 缺陷（必须处理）**：`audio_service` issue #1139「Playing state is not being reported to iOS >= 13.0」影响**已发布的 0.18.18 / 0.18.19** —— iOS 侧收不到播放状态，导致锁屏/控制中心无媒体控件、Dynamic Island 不显示、CarPlay 不工作、其他 App 播放时不会暂停本应用。这是**代码缺陷而非配置问题**，修复（PR #1140）已合并进 git `minor` 分支并有真机验证，但截至采用时 **0.18.20 尚未发布到 pub.dev**，因此需用 `dependency_overrides` 指向 git 才能获得。若不加此绕过，「后台播放与锁屏控制」这一 MVP 必含项在 iOS 上**直接不工作**。
+- 另有未修 issue 需在真机验收时覆盖：**#993**（iOS 16.x 后台加载新曲目时音频卡死，iOS 14/15 正常，有复现工程，2023-01 开至今 OPEN）、#1034（锁屏不显示控件）、#1153（锁屏不显示元数据）、#917（锁屏播放/暂停键偶发变灰）。
 - 避免把服务端放在「仅允许 TLS 1.3」的终端后面：`media_kit` 内置 Mbed TLS 缺 TLS 1.3 client，Android/iOS 会握手失败。局域网 HTTP 场景不受影响。
 - `audio_service` 与 `media_kit` 职责不重叠，二者不冲突；`media_kit` 作者自己的 Harmonoid 正是 `audio_service` + `audio_session` + `media_kit` 的组合。
