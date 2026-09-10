@@ -17,18 +17,19 @@ ADR-0002 出于「一套播放逻辑、无需为桌面端维护第二套音频�
 
 1. **认证继续走 URL 查询串**，不依赖 `httpHeaders`。
 2. **`just_audio` 的原生后端即为各平台最优解**：iOS 走 AVFoundation，Android 走 ExoPlayer/Media3。这与「各平台用各自最优实现」的目标一致，但只维护一套 Dart 逻辑，而不是写两套原生播放器。
-3. **不引入 `just_audio_media_kit`**。该包存在的目的是为 **Linux 与 Windows** 换用 libmpv 后端（README 明确 Android/iOS/macOS 默认关闭且「natively supported by just_audio」）。既然 macOS 与 Windows 都已砍掉，它没有用武之地；它只证明 `just_audio` 具备可替换后端的机制。
+3. **不引入 `just_audio_media_kit`**。该包的作用是把 `just_audio` 的解码后端换成 libmpv，从而在 FFmpeg 路径上获得全格式通吃。当前**不启用**：目标设备为 Android TV 10（API 29），MediaCodec FLAC 解码器可用，无引入理由。它保留为**已知的回退手段**——若真机上 FLAC 被证伪（见下），把它挂在 Android 侧即可，`just_audio` 的 Dart API 不变（见 ADR-0011）。
 4. 先前已定的 `PlayerEngine` 抽象接缝（S2）保留：队列、循环/随机、进度等业务逻辑放在其上的纯 Dart 状态机里，与具体内核解耦。
 
 ## 待验证的硬约束（切片 3 的验收基准）
 
-**Android 的 FLAC 支持是本决策最大的风险，且边界已经查清**：
+**Android 的 FLAC 支持边界已经查清；在目标设备上不构成阻塞**：
 
 - `just_audio` 的 Android 后端是 **AndroidX Media3 ExoPlayer 1.4.1**，使用 `DefaultExtractorsFactory`，**不带 `media3-decoder-flac` 扩展**。
-- Media3 官方文档明文：core library 的 FLAC extractor 依赖设备自带的 MediaCodec FLAC 解码器，**「required from API level 27」**。因此 **API < 27 无保证**（Android TV 7.1 = API 25、8.0 = API 26 落在风险区；Android TV 9 = API 28 及以上安全）。
-- Android 平台 FLAC 解码器本身有硬上限：**无多声道、采样率 ≤ 48 kHz、16-bit 为推荐**。hi-res FLAC 走 MediaCodec 路径不可靠。
-- 已知未修 issue：**#440**（FLAC seek 落点偏早 5–30 秒，仅 >3 分钟文件，2021 年开至今 OPEN，22 条评论）；**#868**（部分 FLAC 报 `MediaCodecAudioRenderer: Audio codec error`，报告者升级 ExoPlayer 无效，最终自行引入 ExoPlayer 的 FLAC extension 才解决）；#1017（Android 5 上 FLAC 无声）。
-- 曲库 908 首中 **769 首为 flac**，全部为长曲目的概率高——**#440 与 #868 都直接相关**。
+- Media3 官方文档明文：core library 的 FLAC extractor 依赖设备自带的 MediaCodec FLAC 解码器，**「required from API level 27」**，因此 **API < 27 无保证**（Android TV 7.1 = API 25、8.0 = API 26 落在风险区）。
+- **目标设备已确认不受此限**：开发与验收用的电视为 Sony KD-55X9500G（BRAVIA 4K UR2），运行 **Android TV 10 = API 29**（安全补丁 2026-02-01），在 API 27 线之上。因此本项目**不以「FLAC 在旧 Android TV 上的兼容性」为设计约束**。
+- 平台 FLAC 解码器仍有硬上限（**无多声道、采样率 ≤ 48 kHz、16-bit 为推荐**）。若曲库中存在 hi-res 或多声道 flac，仍走此路径，不保证可靠。
+- 已知未修 issue（在目标设备上是否复现**未验证**）：**#440**（FLAC seek 落点偏早 5–30 秒，仅 >3 分钟文件，2021 年开至今 OPEN）；**#868**（部分 FLAC 报 `MediaCodecAudioRenderer: Audio codec error`）；#1017（Android 5 上 FLAC 无声，与本设备无关）。
+- 曲库 908 首中 **769 首为 flac**，是主体格式，故以上任一条若在真机复现都会影响主流程。
 
 **iOS 的阻塞点在 `audio_service` 而非 `just_audio`**（见 ADR-0008 的 #1139）：必须用 `dependency_overrides` 指向 git 才能获得已合并且真机验证的修复，否则锁屏/控制中心在 iOS 上不工作。
 
