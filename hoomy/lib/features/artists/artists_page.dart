@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/hoomy_theme.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../shared/async_view.dart';
+import '../shared/hoomy_list_row.dart';
 
 /// 艺术家 Tab：全库歌手列表。
 class ArtistsPage extends ConsumerWidget {
@@ -19,12 +21,18 @@ class ArtistsPage extends ConsumerWidget {
         emptyMessage: '曲库是空的',
         itemBuilder: (context, artists) => ListView.separated(
           itemCount: artists.length,
-          separatorBuilder: (_, _) => const Divider(height: 0.67, indent: 16),
+          separatorBuilder: (_, _) => const Divider(),
           itemBuilder: (context, i) {
             final artist = artists[i];
-            return ListTile(
-              title: Text(artist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: Text('${artist.albumCount ?? 0} 张专辑'),
+            return HoomyListRow(
+              title: artist.name,
+              trailing: (state) => Text(
+                '${artist.albumCount ?? 0} 张专辑',
+                style: TextStyle(
+                  fontSize: HoomyDimens.listSubtitleFontSize,
+                  color: state.foreground,
+                ),
+              ),
             );
           },
         ),

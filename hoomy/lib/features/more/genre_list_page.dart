@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/hoomy_theme.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../shared/async_view.dart';
+import '../shared/hoomy_list_row.dart';
 
 /// 风格列表：服务端解析出的曲库流派分组。
 class GenreListPage extends ConsumerWidget {
@@ -19,12 +21,18 @@ class GenreListPage extends ConsumerWidget {
         emptyMessage: '曲库里还没有风格信息',
         itemBuilder: (context, genres) => ListView.separated(
           itemCount: genres.length,
-          separatorBuilder: (_, _) => const Divider(height: 0.67, indent: 16),
+          separatorBuilder: (_, _) => const Divider(),
           itemBuilder: (context, i) {
             final genre = genres[i];
-            return ListTile(
-              title: Text(genre.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: Text('${genre.songCount ?? 0} 首'),
+            return HoomyListRow(
+              title: genre.name,
+              trailing: (state) => Text(
+                '${genre.songCount ?? 0} 首',
+                style: TextStyle(
+                  fontSize: HoomyDimens.listSubtitleFontSize,
+                  color: state.foreground,
+                ),
+              ),
             );
           },
         ),

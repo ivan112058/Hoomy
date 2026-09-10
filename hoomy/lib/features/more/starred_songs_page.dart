@@ -22,7 +22,7 @@ class StarredSongsPage extends ConsumerWidget {
         emptyMessage: '还没有收藏的歌曲',
         itemBuilder: (context, songs) => ListView.separated(
           itemCount: songs.length,
-          separatorBuilder: (_, _) => const Divider(height: 0.67, indent: 16),
+          separatorBuilder: (_, _) => const Divider(),
           itemBuilder: (context, i) => SongTile(song: songs[i]),
         ),
       ),

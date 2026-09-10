@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/hoomy_theme.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../shared/async_view.dart';
+import '../shared/hoomy_list_row.dart';
 
 /// 播放列表 Tab：Navidrome 服务端歌单（MVP 只读）。
 class PlaylistsPage extends ConsumerWidget {
@@ -19,13 +21,20 @@ class PlaylistsPage extends ConsumerWidget {
         emptyMessage: '服务器上还没有歌单',
         itemBuilder: (context, playlists) => ListView.separated(
           itemCount: playlists.length,
-          separatorBuilder: (_, _) => const Divider(height: 0.67, indent: 16),
+          separatorBuilder: (_, _) => const Divider(),
           itemBuilder: (context, i) {
             final playlist = playlists[i];
-            return ListTile(
-              title: Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: playlist.owner == null ? null : Text('by ${playlist.owner}'),
-              trailing: Text('${playlist.songCount ?? 0} 首'),
+            final owner = playlist.owner;
+            return HoomyListRow(
+              title: playlist.name,
+              subtitle: owner == null ? null : 'by $owner',
+              trailing: (state) => Text(
+                '${playlist.songCount ?? 0} 首',
+                style: TextStyle(
+                  fontSize: HoomyDimens.listSubtitleFontSize,
+                  color: state.foreground,
+                ),
+              ),
             );
           },
         ),

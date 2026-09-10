@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/hoomy_theme.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../../data/subsonic/models.dart';
+import 'hoomy_list_row.dart';
 
-/// 歌曲行：标题 + 歌手·专辑 + 时长 + 收藏星标。
+/// 歌曲行：标题 + 「歌手 - 专辑」+ 时长 + 收藏星标。
+///
+/// 行本身是 [HoomyListRow]：60dp、直角、按下整行变蓝且文字图标变白；
+/// **不带封面缩略图**（`CONTEXT.md`「列表行」）。
 class SongTile extends ConsumerStatefulWidget {
   const SongTile({super.key, required this.song, this.onTap});
 
@@ -38,42 +43,48 @@ class _SongTileState extends ConsumerState<SongTile> {
   @override
   Widget build(BuildContext context) {
     final song = widget.song;
-    final theme = Theme.of(context);
-    return ListTile(
+    final palette = HoomyPalette.of(context);
+    final duration = song.durationSec;
+    return HoomyListRow(
+      title: song.title,
+      subtitle: _secondaryText(song),
       onTap: widget.onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      title: Text(
-        song.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        [
-          if (song.artist != null && song.artist!.isNotEmpty) song.artist!,
-          if (song.album != null && song.album!.isNotEmpty) song.album!,
-        ].join(' · '),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (song.durationSec != null)
-            Text(
-              _formatDuration(song.durationSec!),
-              style: theme.textTheme.bodySmall,
+      trailing: (state) {
+        // 未按下且已收藏时星标用播放红；按下时统一变白。
+        final starColor = _effectiveStarred && !state.pressed
+            ? palette.playing
+            : state.foreground;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (duration != null)
+              Text(
+                _formatDuration(duration),
+                style: TextStyle(
+                  fontSize: HoomyDimens.listSubtitleFontSize,
+                  fontWeight: FontWeight.bold,
+                  color: state.foreground,
+                ),
+              ),
+            IconButton(
+              onPressed: _toggleStar,
+              color: starColor,
+              icon: Icon(_effectiveStarred ? Icons.star : Icons.star_border),
             ),
-          IconButton(
-            onPressed: _toggleStar,
-            icon: Icon(
-              _effectiveStarred ? Icons.star : Icons.star_border,
-              color: _effectiveStarred ? theme.colorScheme.primary : null,
-            ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
+}
+
+/// 副标题为「歌手 - 专辑」；缺一边时只显示存在的一边。
+String? _secondaryText(SubsonicSong song) {
+  final parts = [song.artist, song.album]
+      .where((part) => part != null && part.isNotEmpty)
+      .cast<String>()
+      .toList();
+  return parts.isEmpty ? null : parts.join(' - ');
 }
 
 String _formatDuration(int seconds) {

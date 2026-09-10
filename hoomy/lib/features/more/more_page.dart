@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/hoomy_theme.dart';
 import '../shared/async_view.dart';
+import '../shared/hoomy_list_row.dart';
 import 'genre_list_page.dart';
 import 'starred_songs_page.dart';
 
@@ -35,12 +37,14 @@ class MorePage extends StatelessWidget {
               MaterialPageRoute<void>(builder: (_) => const StarredSongsPage()),
             ),
           ),
-          const Divider(height: 0.67),
+          const Divider(),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Text(
               'Hoomy · 局域网 NAS 音乐播放器',
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.dividerColor),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: HoomyPalette.of(context).textSecondary,
+              ),
             ),
           ),
         ],
@@ -58,11 +62,11 @@ class _MoreTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return HoomyListRow(
+      title: title,
       leading: Icon(icon),
-      title: Text(title),
-      trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
+      trailing: (_) => const Icon(Icons.chevron_right),
     );
   }
 }
