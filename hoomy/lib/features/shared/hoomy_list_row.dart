@@ -39,9 +39,7 @@ class HoomyDividedRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [child, const HoomyRowDivider()],
-    );
+    return Column(children: [child, const HoomyRowDivider()]);
   }
 }
 
@@ -76,6 +74,7 @@ class HoomyListRow extends StatefulWidget {
     this.leading,
     this.trailing,
     this.onTap,
+    this.highlighted = false,
   });
 
   /// 标题。
@@ -92,6 +91,11 @@ class HoomyListRow extends StatefulWidget {
 
   /// 点击回调；为 null 时仍保留按压反馈。
   final VoidCallback? onTap;
+
+  /// 是否是当前播放的曲目：标题用播放态红标出。
+  ///
+  /// 按下时仍按按压反馈统一变白，红色只在未按下的常态下可见。
+  final bool highlighted;
 
   @override
   State<HoomyListRow> createState() => _HoomyListRowState();
@@ -127,8 +131,14 @@ class _HoomyListRowState extends State<HoomyListRow> {
   @override
   Widget build(BuildContext context) {
     final palette = HoomyPalette.of(context);
-    final titleColor = _pressed ? palette.pressedForeground : palette.textPrimary;
-    final secondaryColor = _pressed ? palette.pressedForeground : palette.textSecondary;
+    final titleColor = _pressed
+        ? palette.pressedForeground
+        : widget.highlighted
+        ? palette.playing
+        : palette.textPrimary;
+    final secondaryColor = _pressed
+        ? palette.pressedForeground
+        : palette.textSecondary;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -166,7 +176,8 @@ class _HoomyListRowState extends State<HoomyListRow> {
                             color: titleColor,
                           ),
                         ),
-                        if (widget.subtitle != null && widget.subtitle!.isNotEmpty)
+                        if (widget.subtitle != null &&
+                            widget.subtitle!.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
                             child: Text(
@@ -184,7 +195,10 @@ class _HoomyListRowState extends State<HoomyListRow> {
                   ),
                   if (widget.trailing != null)
                     widget.trailing!(
-                      HoomyRowState(pressed: _pressed, foreground: secondaryColor),
+                      HoomyRowState(
+                        pressed: _pressed,
+                        foreground: secondaryColor,
+                      ),
                     ),
                 ],
               ),

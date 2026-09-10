@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../albums/albums_page.dart';
 import '../artists/artists_page.dart';
 import '../more/more_page.dart';
+import '../player/playback_bar.dart';
+import '../player/playback_error_banner.dart';
 import '../playlists/playlists_page.dart';
 import '../songs/songs_page.dart';
 
@@ -29,36 +31,48 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.queue_music_outlined),
-            selectedIcon: Icon(Icons.queue_music),
-            label: '播放列表',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: '艺术家',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.album_outlined),
-            selectedIcon: Icon(Icons.album),
-            label: '专辑',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.music_note_outlined),
-            selectedIcon: Icon(Icons.music_note),
-            label: '歌曲',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined),
-            selectedIcon: Icon(Icons.grid_view),
-            label: '更多',
-          ),
-        ],
+      // 播放条与错误提示挂在导航栏之上：任何 Tab 都能看到正在放什么、
+      // 播放失败也能立刻看到原因，不会随页面切走而消失。
+      bottomNavigationBar: Material(
+        color: Colors.transparent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const PlaybackErrorBanner(),
+            const PlaybackBar(),
+            NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (i) => setState(() => _index = i),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.queue_music_outlined),
+                  selectedIcon: Icon(Icons.queue_music),
+                  label: '播放列表',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: '艺术家',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.album_outlined),
+                  selectedIcon: Icon(Icons.album),
+                  label: '专辑',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.music_note_outlined),
+                  selectedIcon: Icon(Icons.music_note),
+                  label: '歌曲',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.grid_view_outlined),
+                  selectedIcon: Icon(Icons.grid_view),
+                  label: '更多',
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

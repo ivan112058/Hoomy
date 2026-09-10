@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/alphabet/alphabet.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../../data/subsonic/models.dart';
+import '../player/playback_listenable.dart';
 import '../shared/alphabet_sectioned_view.dart';
 import '../shared/async_view.dart';
 import '../shared/hoomy_list_row.dart';
+import '../shared/play_song.dart';
 import '../shared/song_tile.dart';
 import 'song_search.dart';
 
@@ -36,16 +38,16 @@ class SongsPage extends ConsumerWidget {
 ///
 /// 过滤只发生在 [songs] 这份已取回的全量数据上（ADR-0005），不发起请求，
 /// 所以输入即时生效；清空搜索词即回到完整分组列表。
-class _SongsBody extends StatefulWidget {
+class _SongsBody extends ConsumerStatefulWidget {
   const _SongsBody({required this.songs});
 
   final List<SubsonicSong> songs;
 
   @override
-  State<_SongsBody> createState() => _SongsBodyState();
+  ConsumerState<_SongsBody> createState() => _SongsBodyState();
 }
 
-class _SongsBodyState extends State<_SongsBody> {
+class _SongsBodyState extends ConsumerState<_SongsBody> {
   final _searchController = TextEditingController();
   String _query = '';
 
@@ -55,10 +57,20 @@ class _SongsBodyState extends State<_SongsBody> {
     super.dispose();
   }
 
+  /// 点一首歌：以**当前可见列表**为播放队列，从这一首开始播。
+  ///
+  /// 搜索过滤后点歌时，队列就是过滤后的结果 —— 用户看到的上下文是什么，
+  /// 连续播放的上下文就是什么（spec 用户故事 24）。
+  void _play(List<SubsonicSong> visible, SubsonicSong song) =>
+      playSongFromList(ref, visible, song);
+
   @override
   Widget build(BuildContext context) {
     final matched = filterSongsByQuery(widget.songs, _query);
-    final sections = buildAlphabetSections(matched, keyOf: (song) => song.title);
+    final sections = buildAlphabetSections(
+      matched,
+      keyOf: (song) => song.title,
+    );
 
     return Column(
       children: [
@@ -69,11 +81,20 @@ class _SongsBodyState extends State<_SongsBody> {
         Expanded(
           child: matched.isEmpty
               ? const Center(child: Text('没有匹配的歌曲'))
-              : AlphabetSectionedList<SubsonicSong>(
-                  sections: sections,
-                  itemExtent: kHoomyListRowExtent,
-                  itemBuilder: (context, song, _) =>
-                      HoomyDividedRow(child: SongTile(song: song)),
+              // 只在换歌时重建列表；进度每 ~200ms 的通知不会带累它。
+              : CurrentSongIdBuilder(
+                  builder: (context, currentSongId) =>
+                      AlphabetSectionedList<SubsonicSong>(
+                        sections: sections,
+                        itemExtent: kHoomyListRowExtent,
+                        itemBuilder: (context, song, _) => HoomyDividedRow(
+                          child: SongTile(
+                            song: song,
+                            highlighted: song.id == currentSongId,
+                            onTap: () => _play(matched, song),
+                          ),
+                        ),
+                      ),
                 ),
         ),
       ],

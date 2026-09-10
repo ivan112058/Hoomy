@@ -3,9 +3,7 @@ import 'dart:math';
 
 import '../data/subsonic/models.dart';
 import 'player_engine.dart';
-
-/// 由曲目 id 得到可播放的音频地址（Subsonic `stream` 端点，含认证查询串）。
-typedef StreamUriResolver = Uri Function(String songId);
+import 'stream_uri.dart';
 
 /// 循环模式。
 enum RepeatMode {
@@ -47,8 +45,8 @@ class PlaybackQueueState {
 
   SubsonicSong? get currentSong =>
       currentIndex >= 0 && currentIndex < queue.length
-          ? queue[currentIndex]
-          : null;
+      ? queue[currentIndex]
+      : null;
 }
 
 /// 播放状态机：持有队列、当前索引、循环模式与随机模式，并驱动 [PlayerEngine]。
@@ -66,19 +64,19 @@ class PlaybackQueueState {
 ///   都会以当前曲目为起点开一轮，一轮内每首至多一次。全部循环下一轮走完后
 ///   重新洗牌开新一轮，并避免新一轮第一首就是刚播完的那首。
 class PlaybackStateMachine {
-  PlaybackStateMachine(
-    this._engine,
-    this._streamUriOf, {
-    Random? random,
-  }) : _random = random ?? Random() {
-    _completionSub =
-        _engine.completionStream.listen((_) => unawaited(_onCompleted()));
+  PlaybackStateMachine(this._engine, this._streamUriOf, {Random? random})
+    : _random = random ?? Random() {
+    _completionSub = _engine.completionStream.listen(
+      (_) => unawaited(_onCompleted()),
+    );
+    _errorSub = _engine.errorStream.listen(_errors.add);
   }
 
   final PlayerEngine _engine;
   final StreamUriResolver _streamUriOf;
   final Random _random;
   StreamSubscription<void>? _completionSub;
+  StreamSubscription<PlayerEngineError>? _errorSub;
 
   List<SubsonicSong> _queue = const [];
 
@@ -97,17 +95,26 @@ class PlaybackStateMachine {
   PlaybackQueueState _state = PlaybackQueueState.empty;
   final _states = StreamController<PlaybackQueueState>.broadcast();
 
+  /// 播放失败事件流，直接转发自引擎（文案已由引擎翻译好）。
+  ///
+  /// 状态机自身不产生错误：队列规则（推进、循环、随机）与音频设备无关，
+  /// 失败只可能来自引擎的加载／解码／网络。
+  final _errors = StreamController<PlayerEngineError>.broadcast();
+
   /// 当前队列状态。
   PlaybackQueueState get state => _state;
 
   /// 队列状态变化流。
   Stream<PlaybackQueueState> get stateStream => _states.stream;
 
+  /// 播放失败事件流，供界面提示。
+  Stream<PlayerEngineError> get errorStream => _errors.stream;
+
   /// 当前曲目在队列中的下标；空队列为 -1。
   int get _currentIndex =>
       _playOrderCursor >= 0 && _playOrderCursor < _playOrder.length
-          ? _playOrder[_playOrderCursor]
-          : -1;
+      ? _playOrder[_playOrderCursor]
+      : -1;
 
   /// 用 [songs] 作为播放队列（当前曲目所在的上下文），并从 [startIndex] 开始播放。
   ///
@@ -174,7 +181,10 @@ class PlaybackStateMachine {
   Future<void> dispose() async {
     await _completionSub?.cancel();
     _completionSub = null;
+    await _errorSub?.cancel();
+    _errorSub = null;
     await _states.close();
+    await _errors.close();
     await _engine.dispose();
   }
 

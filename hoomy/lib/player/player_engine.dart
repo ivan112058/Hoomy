@@ -21,7 +21,15 @@ abstract interface class PlayerEngine {
   /// 推进，状态供界面呈现。引擎对同一曲目的结束只应上报一次。
   Stream<void> get completionStream;
 
+  /// 播放失败事件流，携带可直接呈现给用户的文案。
+  ///
+  /// 加载、解码、播放中任何一环失败都走这里，界面据此提示，不静默失败。
+  Stream<PlayerEngineError> get errorStream;
+
   /// 加载 [uri] 指向的音频并停在起点，不自动播放。
+  ///
+  /// 加载阶段失败以 [errorStream] 上报，不以异常形式抛出 —— 调用方是状态机，
+  /// 它没有呈现错误的位置。
   Future<void> load(Uri uri);
 
   /// 开始或继续播放。
@@ -38,6 +46,19 @@ abstract interface class PlayerEngine {
 
   /// 释放底层资源，之后不再收到任何事件。
   Future<void> dispose();
+}
+
+/// 一次播放失败：可读文案 + 可选的引擎原始描述。
+///
+/// [message] 面向用户（中文），[detail] 面向开发者定位（如 `(1) ...`）。
+class PlayerEngineError {
+  const PlayerEngineError(this.message, {this.detail});
+
+  final String message;
+  final String? detail;
+
+  @override
+  String toString() => detail == null ? message : '$message（$detail）';
 }
 
 /// 播放引擎的加载阶段。
