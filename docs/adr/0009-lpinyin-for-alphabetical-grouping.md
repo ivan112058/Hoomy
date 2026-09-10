@@ -4,7 +4,7 @@
 
 ## 背景
 
-歌曲、专辑、歌手需要按拼音首字母分到 A–Z / # 组，供列表分组与 A-Z 快捷栏使用。参考项目用 Android 的 ICU `Han-Latin` 转写，但那是平台 API（且仅 Android API ≥ 29 可用），Flutter 侧没有等价能力：`intl` 不能转写，Dart 标准库无转写，Flutter 引擎虽带 `icudtl.dat` 但未对 Dart 暴露。Apple 平台也有转写 API，但没有任何现成 Flutter 插件封装，各平台各写一套成本明显更高。
+歌曲、专辑、歌手需要按拼音首字母分到 A–Z / # 组，供列表分组与 A-Z 快捷栏使用。参考项目用 Android 的 ICU `Han-Latin` 转写，但那是平台 API（且仅 Android API ≥ 29 可用），Flutter 侧没有等价能力：`intl` 不能转写，Dart 标准库无转写，Flutter 引擎虽带 `icudtl.dat` 但未对 Dart 暴露。iOS 也有平台转写 API，但没有任何现成 Flutter 插件封装，两平台各写一套成本明显更高。
 
 包的选择：`lpinyin` 2.0.3（2021-05-11）纯 Dart、零依赖、源码 416 KB，实测在 Dart 3.13.2 可运行，但**实质停更**；`pinyin` 3.3.0（2024-04-16）是其后继且仍维护，但源码 4.08 MB，为「取首字母」这一个用途大 10 倍。
 

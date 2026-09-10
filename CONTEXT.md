@@ -53,11 +53,11 @@ _Avoid_：播放列表 —— 那是 Playlist。
 仅接受标准证书校验，不支持信任自签证书。
 
 **平台（Platform）**：
-目标平台为 iOS、**Android TV**、macOS，优先级由高到低。**Windows 已砍掉**。
+目标平台为 iOS、**Android TV**，优先级由高到低。**macOS 与 Windows 已砍掉**。
 Android **只做 TV，不做手机**；TV 无触屏，唯一输入是遥控器 D-pad，因此导航结构在 TV 上另行设计，不沿用底部 Tab；TV 上以聚焦/悬停反馈替代按压反馈。
 
 **底部 Tab**：
-iOS/macOS 的一级导航，位于主界面底部；其上方为迷你播放条。
+iOS 的一级导航，位于主界面底部；其上方为迷你播放条。
 _Avoid_：在 Android TV 上沿用底部 Tab —— TV 导航另行设计。
 
 ## 视觉与交互约定

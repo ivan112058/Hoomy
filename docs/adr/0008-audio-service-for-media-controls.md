@@ -16,7 +16,7 @@ ADR-0002 选定 `media_kit` 为统一播放内核。核实后发现一个会改�
 2. **`audio_session` 负责音频会话与打断**。在 `MediaKit.ensureInitialized()` **之后**配置 `AudioSessionConfiguration.music()`；必须自行订阅并处理 `interruptionEventStream`（来电/其他 App 抢占）与 `becomingNoisyEventStream`（耳机拔出 → `pause()`）——`media_kit` 不订阅这些流。
 3. **认证一律走 URL 查询串**（Subsonic 原生方式），**不依赖 `httpHeaders`**。`media_kit` 有未修 issue：带 `httpHeaders` 的流上 `Media(start:)` 与 `seek()` 被忽略，且不支持按请求动态刷新 header。查询串经实测原样透传。
 4. **曲目身份由客户端持有**。`media_kit` 的事件流不含 title/artist，队列须自行维护曲目元数据，并通过 `audio_service` 的 `MediaItem` 推送给系统。
-5. **平台范围**：Android TV、iOS、macOS 三平台均由 `audio_service` 覆盖（其原生实现含 android 与 darwin）。**Windows 已砍掉**，故不涉及桌面第二套媒体会话方案。
+5. **平台范围**：iOS 与 Android TV 两平台均由 `audio_service` 覆盖（其原生实现含 android 与 darwin）。**macOS 与 Windows 已砍掉**，故不涉及任何桌面媒体会话方案。
 
 ## 后果
 
