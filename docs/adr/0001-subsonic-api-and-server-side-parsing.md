@@ -15,5 +15,5 @@ Hoomy 的服务端是 Navidrome，提供两套 API：Subsonic 兼容 API（`/res
 ## 后果
 
 - 未来可兼容其他 Subsonic 系服务器（Airsonic、gonic 等）。
-- 避免在四平台维护 flac/mp3/m4a 标签解析库；代价是歌词/封面能力受限于服务端解析结果（如旧版 Navidrome 的 `getLyrics` 不返回同步 LRC，需服务端版本 ≥ 0.49 的 `getLyricsBySongId`）。
+- 避免在四平台维护 flac/mp3/m4a 标签解析库；代价是歌词/封面能力受限于服务端解析结果。歌词能力按服务端版本分档：`getLyrics` 只返回被剥离时间戳的纯文本；结构化歌词需 `getLyricsBySongId`（Navidrome ≥ **0.51.0**）；逐字（karaoke）高亮属 OpenSubsonic `songLyrics` 扩展 v2，需 Navidrome ≥ **0.63.0**。客户端据此探测降级，不猜测服务端能力。(版本经 2026-09-10 核实，见 `docs/research/navidrome-lyrics.md`)
 - 需处理 API 版本与 Navidrome 版本的兼容矩阵。
