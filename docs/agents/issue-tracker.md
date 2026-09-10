@@ -18,6 +18,36 @@
 
 读取所引用路径的文件。用户通常直接给出路径或 issue 编号。
 
+## 版本管理
+
+- **`spec.md` 入库**：它是稳定的需求基线，改动手动提交（`.scratch/` 在 `.gitignore` 里，需 `git add -f`）。
+- **`issues/` 不入库**：票据是消耗品，实现完即作废，跟随实现变动维护成本高。
+
+## 当前状态
+
+- **MVP spec**：`.scratch/mvp/spec.md`
+- **票据**：`.scratch/mvp/issues/01-…` 至 `16-…`，共 16 张，`Status` 均为 `ready-for-agent`
+- **依赖链**：`01 → 02 → 05 → 06 → 07 → 09 → 16`；`03` 与 `02` 并列（同被 `01` 阻塞）；`04`、`12`、`13`、`14` 均只被 `02` 阻塞；`08` 被 `06`；`10` 被 `01,09`；`11` 被 `09`；`15` 被 `07`；`16` 被 `06,09,12,13,14`
+
+## 推进方式
+
+按 **frontier** 取材：只取「其 `Blocked by` 列出的一切都已完成」的票据。
+
+**每张票据开一个全新会话跑 `/implement`，票据之间 `/clear`。** 票据是自包含的，所以上一张的上下文可以随手丢掉 —— 不要在同一条长上下文里连做多张。做完把该票据文件的 `Status:` 改为完成态，并记下结论（尤其当票据内含「待定决策」或「回退触发点」时，例如 `16` 的 TV 导航结构、`06` 的格式验证结论）。
+
+## 集成测试
+
+`hoomy/test/live_server_test.dart` 对真实 Navidrome **只读**端点验真，默认跳过（默认套件不依赖网络）。要跑它需要显式传入服务器与凭据：
+
+```
+cd hoomy && flutter test test/live_server_test.dart \
+  --dart-define=HOOMY_TEST_SERVER=http://<host>:4533 \
+  --dart-define=HOOMY_TEST_USER=<user> \
+  --dart-define=HOOMY_TEST_PASS=<pass>
+```
+
+**凭据不入库**，向用户索取。**只调用只读端点**：`ping`、`search3`、`getArtists`、`getArtist`、`getAlbumList2`、`getAlbum`、`getPlaylists`、`getPlaylist`、`getGenres`、`getStarred2`、`getLyricsBySongId`、`getLyrics`。**绝不调用** `star`、`unstar`、`scrobble` 等写端点。
+
 ## Wayfinding 操作
 
 供 `/wayfinder` 使用。**map** 是一个文件，**child** 是每个 ticket 一个文件。
