@@ -178,6 +178,25 @@ class PlaybackController extends ChangeNotifier {
   /// 上一首。
   Future<void> previous() => _machine.previous();
 
+  /// 跳到本次播放顺序里的第 [position] 个（[view] 里的位置）；越界时无操作。
+  Future<void> playAt(int position) => _machine.jumpTo(position);
+
+  /// 重排「即将播放」段：[newOrder] 必须是 [QueueView.upcoming] 那批曲目的一个
+  /// 排列，否则整次操作被忽略。
+  void reorderUpcoming(List<SubsonicSong> newOrder) =>
+      _machine.reorderUpcoming(newOrder);
+
+  /// 是否还有「即将播放」的曲目（队列覆盖层的清空按钮据此启停）。
+  bool get hasUpcoming => _machine.view.upcoming.isNotEmpty;
+
+  /// 队列在**本次播放顺序**下的三段分区（队列覆盖层的显示口径）。
+  ///
+  /// 随机模式下它与「队列自然序 + 当前下标」不同，界面必须用这一份。
+  QueueView get view => _machine.view;
+
+  /// 清空「即将播放」段：保留已播放段与当前曲目。
+  void clearUpcoming() => _machine.clearUpcoming();
+
   /// 跳转到 [position]。
   ///
   /// 直达引擎而不经状态机：进度是引擎的能力，状态机只管队列与当前曲目

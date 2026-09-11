@@ -355,6 +355,254 @@ void main() {
     expect(ids.sublist(1).toSet(), {'s0', 's2', 's3'});
   });
 
+  group('队列编辑（票据 09 的队列覆盖层）', () {
+    test('jumpTo 换当前曲目但不换队列', () async {
+      final (:engine, :machine) = build();
+      await machine.playQueue(songs(4), startIndex: 1);
+
+      await machine.jumpTo(3);
+
+      expect(machine.state.currentSong?.id, 's3');
+      expect(machine.state.currentIndex, 3);
+      expect(machine.state.queue.map((s) => s.id), ['s0', 's1', 's2', 's3']);
+      expect(engine.loadedIds, ['s1', 's3']);
+      expect(engine.playCount, 2);
+    });
+
+    test('jumpTo：越界或点到当前曲目时无操作', () async {
+      final (:engine, :machine) = build();
+      await machine.playQueue(songs(3), startIndex: 1);
+
+      await machine.jumpTo(1); // 就是当前曲目
+      await machine.jumpTo(-1);
+      await machine.jumpTo(3);
+
+      expect(machine.state.currentSong?.id, 's1');
+      expect(engine.loadedIds, ['s1']);
+    });
+
+    test('jumpTo 单曲循环下仍换歌（手动切歌不受单曲循环约束）', () async {
+      final (:engine, :machine) = build();
+      await machine.playQueue(songs(3), startIndex: 0);
+      machine.setRepeatMode(RepeatMode.one);
+
+      await machine.jumpTo(2);
+
+      expect(machine.state.currentSong?.id, 's2');
+      expect(engine.loadedIds, ['s0', 's2']);
+    });
+
+    test('jumpTo 在随机模式下换歌后仍沿本轮随机顺序继续', () async {
+      final (:engine, :machine) = build(seed: 7);
+      machine.setShuffle(true);
+      await machine.playQueue(songs(5), startIndex: 0);
+
+      // 按「下一首」摸清本轮随机顺序（播放顺序位置 0…4 上的曲目）。
+      final shuffled = <String>[machine.state.currentSong!.id];
+      for (var i = 0; i < 4; i++) {
+        await machine.next();
+        shuffled.add(machine.state.currentSong!.id);
+      }
+      expect(shuffled.toSet(), idSet(5));
+
+      // 回到本轮第二首：已播放段只剩第一首，下一首仍是随机顺序里的第三首。
+      await machine.jumpTo(1);
+      expect(machine.state.currentSong?.id, shuffled[1]);
+      expect(machine.view.played.map((s) => s.id), [shuffled.first]);
+
+      await machine.next();
+      expect(machine.state.currentSong?.id, shuffled[2]);
+    });
+
+    test('队列分区按本次播放顺序切（随机关闭时就是队列自然序）', () async {
+      final (:engine, :machine) = build();
+      await machine.playQueue(songs(5), startIndex: 2);
+
+      expect(machine.view.played.map((s) => s.id), ['s0', 's1']);
+      expect(machine.view.currentSong?.id, 's2');
+      expect(machine.view.upcoming.map((s) => s.id), ['s3', 's4']);
+
+      await machine.jumpTo(4);
+      expect(machine.view.played.map((s) => s.id), ['s0', 's1', 's2', 's3']);
+      expect(machine.view.upcoming, isEmpty);
+      expect(machine.view.currentSong?.id, 's4');
+    });
+
+    test('随机模式下分区按随机顺序切，真正下一首不会被标成已播放', () async {
+      final (:engine, :machine) = build(seed: 7);
+      machine.setShuffle(true);
+      await machine.playQueue(songs(5), startIndex: 0);
+
+      // 走一遍本轮随机顺序，作为权威的「位置 → 曲目」表。
+      final walked = <String>[machine.state.currentSong!.id];
+      for (var i = 0; i < 4; i++) {
+        await machine.next();
+        walked.add(machine.state.currentSong!.id);
+      }
+      expect(walked.toSet(), idSet(5));
+
+      // 回到本轮第二首。
+      await machine.jumpTo(1);
+      final view = machine.view;
+
+      // 分区是播放顺序的切片：已播放只有第一首，当前是第二首，
+      // 接下来正是随机顺序里的后三首。
+      expect(view.played.map((s) => s.id), [walked[0]]);
+      expect(view.currentSong?.id, walked[1]);
+      expect(view.upcoming.map((s) => s.id), walked.sublist(2));
+      // 关键回归：真正下一首绝不出现在已播放段里（按队列自然序切就会出错）。
+      expect(view.played.map((s) => s.id), isNot(contains(walked[2])));
+
+      // 真实推进与分区一致。
+      await machine.next();
+      expect(machine.state.currentSong?.id, walked[2]);
+    });
+
+    test('reorderUpcoming 只重排即将播放段，当前曲目继续播放', () async {
+      final (:engine, :machine) = build();
+      await machine.playQueue(songs(5), startIndex: 1);
+      final upcoming = machine.view.upcoming;
+
+      // 把即将播放段倒过来。
+      machine.reorderUpcoming(upcoming.reversed.toList());
+
+      expect(machine.state.currentSong?.id, 's1');
+      expect(engine.loadedIds, ['s1'], reason: '重排不重新加载当前曲目');
+      expect(machine.view.played.map((s) => s.id), ['s0']);
+      expect(machine.view.upcoming.map((s) => s.id), ['s4', 's3', 's2']);
+      // 接下来按新顺序播放。
+      await machine.next();
+      expect(machine.state.currentSong?.id, 's4');
+      await machine.next();
+      expect(machine.state.currentSong?.id, 's3');
+    });
+
+    test('reorderUpcoming 在随机模式下重排后按新顺序播放，已播放段收紧到当前之前', () async {
+      final (:engine, :machine) = build(seed: 7);
+      machine.setShuffle(true);
+      await machine.playQueue(songs(5), startIndex: 0);
+      await machine.next();
+      final playedBefore = machine.view.played.map((s) => s.id).toList();
+      expect(playedBefore, hasLength(1));
+
+      machine.reorderUpcoming(machine.view.upcoming.reversed.toList());
+
+      // 当前曲目不动、随机开关不变；队列被整理成「已播放 + 当前 + 即将播放」三段。
+      expect(machine.state.currentSong, isNotNull);
+      expect(machine.state.shuffle, isTrue);
+      expect(engine.loadedIds, hasLength(2), reason: '重排不重新加载');
+      expect(machine.view.played.map((s) => s.id), playedBefore);
+      expect(machine.view.currentSong?.id, machine.state.currentSong?.id);
+
+      // 接下来的推进严格按拖拽后的顺序。
+      final upcoming = machine.view.upcoming.map((s) => s.id).toList();
+      for (final id in upcoming) {
+        await machine.next();
+        expect(machine.state.currentSong?.id, id);
+      }
+    });
+
+    test('reorderUpcoming：非法的顺序（缺项／多项／重复／含当前）整次忽略', () async {
+      final (:engine, :machine) = build();
+      await machine.playQueue(songs(4), startIndex: 1);
+      final upcoming = machine.view.upcoming;
+
+      machine.reorderUpcoming([upcoming.first]); // 少一个
+      machine.reorderUpcoming([...upcoming, songs(1).single]); // 多一个
+      machine.reorderUpcoming([upcoming.first, upcoming.first]); // 重复
+      machine.reorderUpcoming([
+        machine.state.currentSong!,
+        ...upcoming,
+      ]); // 含当前曲目
+
+      expect(machine.state.queue.map((s) => s.id), ['s0', 's1', 's2', 's3']);
+    });
+
+    test('clearUpcoming 保留已播放与当前曲目，索引不变', () async {
+      final (:engine, :machine) = build();
+      await machine.playQueue(songs(5), startIndex: 2);
+
+      machine.clearUpcoming();
+
+      expect(machine.state.queue.map((s) => s.id), ['s0', 's1', 's2']);
+      expect(machine.state.currentIndex, 2);
+      expect(machine.state.currentSong?.id, 's2');
+      expect(machine.view.upcoming, isEmpty);
+      expect(engine.loadedIds, ['s2'], reason: '清空不重新加载当前曲目');
+
+      // 已到队尾：手动下一首无操作。
+      await machine.next();
+      expect(machine.state.currentSong?.id, 's2');
+    });
+
+    test('clearUpcoming：没有即将播放的曲目时无操作', () async {
+      final (:engine, :machine) = build();
+      await machine.playQueue(songs(2), startIndex: 1);
+
+      machine.clearUpcoming();
+
+      expect(machine.state.queue.map((s) => s.id), ['s0', 's1']);
+    });
+
+    test('随机模式下 clearUpcoming 清掉当前之后的全部曲目', () async {
+      final (:engine, :machine) = build(seed: 5);
+      machine.setShuffle(true);
+      await machine.playQueue(songs(6), startIndex: 0);
+
+      machine.clearUpcoming();
+
+      expect(machine.state.queue.map((s) => s.id), ['s0']);
+      expect(machine.state.currentSong?.id, 's0');
+
+      await machine.next();
+      expect(machine.state.currentSong?.id, 's0', reason: '清空后没有下一首');
+    });
+
+    test('随机模式下清空只保留本次随机实际播过的曲目，且当前曲目不丢', () async {
+      final (:engine, :machine) = build(seed: 5);
+      machine.setShuffle(true);
+      await machine.playQueue(songs(6), startIndex: 0);
+
+      await machine.next();
+      final nowPlaying = machine.state.currentSong!.id;
+      final played = engine.loadedIds.toList();
+      final upcomingBefore = machine.view.upcoming.map((s) => s.id).toList();
+      expect(upcomingBefore, isNotEmpty);
+
+      machine.clearUpcoming();
+
+      // 回归：曾经这里把旧队列下标当新位置，当前曲目会变成 null、界面丢歌。
+      expect(machine.state.currentSong?.id, nowPlaying);
+      expect(machine.view.currentSong?.id, nowPlaying);
+      expect(
+        machine.state.queue[machine.state.currentIndex].id,
+        nowPlaying,
+        reason: 'currentIndex 必须仍指向正在播放的那一首',
+      );
+      expect(machine.state.queue.map((s) => s.id), played, reason: '只剩播过的曲目，按到达顺序');
+      expect(machine.view.upcoming, isEmpty);
+      expect(
+        machine.state.queue.map((s) => s.id),
+        isNot(contains(upcomingBefore.first)),
+      );
+
+      // 当前游标在保留段的末尾，仍能沿实际播过的顺序回退。
+      await machine.previous();
+      expect(machine.state.currentSong?.id, played.first);
+    });
+
+    test('空队列下队列编辑都是无操作', () async {
+      final (:engine, :machine) = build();
+
+      await machine.jumpTo(0);
+      machine.reorderUpcoming(const []);
+      machine.clearUpcoming();
+
+      expect(machine.state.queue, isEmpty);
+      expect(engine.loadedIds, isEmpty);
+    });
+  });
+
   test('dispose 释放引擎', () async {
     final (:engine, :machine) = build();
     await machine.playQueue(songs(1));

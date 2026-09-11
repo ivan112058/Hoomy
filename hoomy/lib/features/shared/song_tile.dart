@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/hoomy_theme.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../../data/subsonic/models.dart';
+import 'duration_text.dart';
 import 'hoomy_list_row.dart';
 import 'song_secondary_text.dart';
 
@@ -56,7 +57,7 @@ class _SongTileState extends ConsumerState<SongTile> {
   Widget build(BuildContext context) {
     final song = widget.song;
     final palette = HoomyPalette.of(context);
-    final duration = song.durationSec;
+    final durationText = formatMetadataDuration(song.durationSec);
     return HoomyListRow(
       title: song.title,
       subtitle: songSecondaryText(song),
@@ -70,9 +71,9 @@ class _SongTileState extends ConsumerState<SongTile> {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (duration != null)
+            if (durationText != null)
               Text(
-                _formatDuration(duration),
+                durationText,
                 style: TextStyle(
                   fontSize: HoomyDimens.listSubtitleFontSize,
                   fontWeight: FontWeight.bold,
@@ -89,10 +90,4 @@ class _SongTileState extends ConsumerState<SongTile> {
       },
     );
   }
-}
-
-String _formatDuration(int seconds) {
-  final m = seconds ~/ 60;
-  final s = seconds % 60;
-  return '$m:${s.toString().padLeft(2, '0')}';
 }

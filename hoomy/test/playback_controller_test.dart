@@ -218,6 +218,79 @@ void main() {
     });
   });
 
+  group('队列编辑（票据 09 的队列覆盖层）', () {
+    test('playAt 跳到队列里的某一首，队列与模式不变', () async {
+      final (:engine, :controller) = build();
+      await controller.playQueue(songs(4), startIndex: 0);
+
+      await controller.playAt(3);
+
+      expect(controller.session.currentSong?.id, 's3');
+      expect(controller.session.queue.queue.map((s) => s.id), [
+        's0',
+        's1',
+        's2',
+        's3',
+      ]);
+      expect(engine.loadedIds, ['s0', 's3']);
+      // 换歌清掉上一首的错误提示，与手动切歌一致。
+      expect(controller.lastError, isNull);
+
+      await controller.dispose();
+    });
+
+    test('reorderUpcoming 改队列顺序且不打断当前曲目', () async {
+      final (:engine, :controller) = build();
+      await controller.playQueue(songs(4), startIndex: 1);
+      final loadsBefore = engine.loadedIds.length;
+
+      // 视图给的是曲目，重排也按曲目给（`[s3, s2]` 倒过来）。
+      final upcoming = controller.view.upcoming;
+      controller.reorderUpcoming([upcoming.last, upcoming.first]);
+      await pumpEventQueue();
+
+      expect(controller.session.queue.queue.map((s) => s.id), [
+        's0',
+        's1',
+        's3',
+        's2',
+      ]);
+      expect(controller.session.currentSong?.id, 's1');
+      expect(engine.loadedIds, hasLength(loadsBefore), reason: '重排不重新加载');
+
+      await controller.dispose();
+    });
+
+    test('clearUpcoming 清掉当前曲目之后的曲目', () async {
+      final (:engine, :controller) = build();
+      await controller.playQueue(songs(4), startIndex: 1);
+
+      controller.clearUpcoming();
+      await pumpEventQueue();
+
+      expect(controller.session.queue.queue.map((s) => s.id), ['s0', 's1']);
+      expect(controller.session.currentSong?.id, 's1');
+      expect(controller.session.hasSession, isTrue);
+
+      await controller.dispose();
+    });
+
+    test('队列编辑通知监听者（界面据此重绘分区）', () async {
+      final (:engine, :controller) = build();
+      await controller.playQueue(songs(4), startIndex: 0);
+      var notifications = 0;
+      controller.addListener(() => notifications++);
+
+      controller.reorderUpcoming(controller.view.upcoming.reversed.toList());
+      controller.clearUpcoming();
+      await pumpEventQueue();
+
+      expect(notifications, 2);
+
+      await controller.dispose();
+    });
+  });
+
   test('dispose 释放引擎与状态机订阅', () async {
     final (:engine, :controller) = build();
     await controller.playQueue(songs(1));

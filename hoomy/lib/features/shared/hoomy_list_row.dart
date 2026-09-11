@@ -65,13 +65,15 @@ class HoomyRowState {
 ///
 /// [trailing] 拿到 [HoomyRowState]：不含颜色的图标继承行内 [IconTheme]
 /// 自动变白，需要显式着色的部件（收藏星标、时长文字）用
-/// [HoomyRowState.foreground]。
+/// [HoomyRowState.foreground]。[leadingBuilder] 同理 —— 行首需要按状态着色
+/// （例如播放标识按下时变白）时用它，而不是绕过这套反馈自己上色。
 class HoomyListRow extends StatefulWidget {
   const HoomyListRow({
     super.key,
     required this.title,
     this.subtitle,
     this.leading,
+    this.leadingBuilder,
     this.trailing,
     this.onTap,
     this.highlighted = false,
@@ -83,8 +85,11 @@ class HoomyListRow extends StatefulWidget {
   /// 副标题；为空则不占位。
   final String? subtitle;
 
-  /// 行首部件（图标等）。
+  /// 行首部件（图标等），不随按压状态着色。
   final Widget? leading;
+
+  /// 行首部件，拿到 [HoomyRowState] 自行着色（与 [trailing] 同口径）。
+  final Widget Function(HoomyRowState state)? leadingBuilder;
 
   /// 行尾部件。
   final Widget Function(HoomyRowState state)? trailing;
@@ -139,6 +144,10 @@ class _HoomyListRowState extends State<HoomyListRow> {
     final secondaryColor = _pressed
         ? palette.pressedForeground
         : palette.textSecondary;
+    final rowState = HoomyRowState(
+      pressed: _pressed,
+      foreground: secondaryColor,
+    );
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -158,7 +167,10 @@ class _HoomyListRowState extends State<HoomyListRow> {
               data: IconThemeData(color: secondaryColor),
               child: Row(
                 children: [
-                  if (widget.leading != null) ...[
+                  if (widget.leadingBuilder != null) ...[
+                    widget.leadingBuilder!(rowState),
+                    const SizedBox(width: 16),
+                  ] else if (widget.leading != null) ...[
                     widget.leading!,
                     const SizedBox(width: 16),
                   ],
@@ -194,12 +206,7 @@ class _HoomyListRowState extends State<HoomyListRow> {
                     ),
                   ),
                   if (widget.trailing != null)
-                    widget.trailing!(
-                      HoomyRowState(
-                        pressed: _pressed,
-                        foreground: secondaryColor,
-                      ),
-                    ),
+                    widget.trailing!(rowState),
                 ],
               ),
             ),

@@ -1,22 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../player/player_providers.dart';
 import '../albums/albums_page.dart';
 import '../artists/artists_page.dart';
 import '../more/more_page.dart';
 import '../player/mini_player_bar.dart';
 import '../player/playback_error_banner.dart';
+import '../player/playback_page.dart';
 import '../playlists/playlists_page.dart';
 import '../songs/songs_page.dart';
 
 /// 主壳：底部五 Tab——播放列表、艺术家、专辑、歌曲、更多。
-class HomeShell extends StatefulWidget {
+class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
   @override
-  State<HomeShell> createState() => _HomeShellState();
+  ConsumerState<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = 3;
 
   static const _pages = [
@@ -40,9 +43,8 @@ class _HomeShellState extends State<HomeShell> {
           children: [
             const PlaybackErrorBanner(),
             MiniPlayerBar(
-              // 点条身展开完整播放页（覆盖层）。覆盖层与路由属票据 09，
-              // 这里先让条身可点（非 null 才是可点状态），09 接上展开。
-              onTap: () {},
+              // 点条身展开全屏播放页（覆盖层）；播放页里再展开队列覆盖层。
+              onTap: _openPlayback,
             ),
             NavigationBar(
               selectedIndex: _index,
@@ -79,5 +81,12 @@ class _HomeShellState extends State<HomeShell> {
         ),
       ),
     );
+  }
+
+  /// 展开全屏播放页。没有控制器（未登录）时不做任何事。
+  void _openPlayback() {
+    final controller = ref.read(playerControllerProvider);
+    if (controller == null) return;
+    Navigator.of(context).push(playbackPageRoute(controller));
   }
 }
