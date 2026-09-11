@@ -254,4 +254,90 @@ void main() {
       );
     });
   });
+
+  group('时间轴偏移（OpenSubsonic offset）', () {
+    test('正 offset 让歌词更早出现（生效时间 = start - offset）', () {
+      const raw = SubsonicLyrics(
+        synced: true,
+        offsetMs: 500,
+        lines: [SubsonicLyricLine(startMs: 2000, value: '第一行')],
+      );
+
+      expect(
+        SongLyrics.fromSubsonic(raw).lines.single.start,
+        const Duration(milliseconds: 1500),
+      );
+    });
+
+    test('负 offset 让歌词更晚出现', () {
+      const raw = SubsonicLyrics(
+        synced: true,
+        offsetMs: -300,
+        lines: [SubsonicLyricLine(startMs: 1000, value: '第一行')],
+      );
+
+      expect(
+        SongLyrics.fromSubsonic(raw).lines.single.start,
+        const Duration(milliseconds: 1300),
+      );
+    });
+
+    test('偏移后为负的时间收敛到 0', () {
+      const raw = SubsonicLyrics(
+        synced: true,
+        offsetMs: 5000,
+        lines: [SubsonicLyricLine(startMs: 1000, value: '第一行')],
+      );
+
+      expect(SongLyrics.fromSubsonic(raw).lines.single.start, Duration.zero);
+    });
+
+    test('offset 同样作用于逐字 cue 的时间轴与当前行判定', () {
+      const raw = SubsonicLyrics(
+        synced: true,
+        offsetMs: 500,
+        lines: [SubsonicLyricLine(startMs: 1000, value: '故事的小黄花')],
+        cueLines: [
+          SubsonicCueLine(
+            index: 0,
+            startMs: 1000,
+            value: '故事的小黄花',
+            cues: [
+              SubsonicCue(
+                startMs: 1000,
+                byteStart: 0,
+                byteEnd: 8,
+                value: '故事的',
+              ),
+              SubsonicCue(
+                startMs: 4000,
+                byteStart: 9,
+                byteEnd: 17,
+                value: '小黄花',
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final lyrics = SongLyrics.fromSubsonic(raw);
+      final line = lyrics.lines.single;
+      expect(line.start, const Duration(milliseconds: 500));
+      expect(line.cues.first.start, const Duration(milliseconds: 500));
+      expect(line.cues[1].start, const Duration(milliseconds: 3500));
+
+      // 位置 500ms 时第一行已开始（未偏移的话要等到 1000ms）。
+      expect(lyrics.activeLineIndex(const Duration(milliseconds: 500)), 0);
+      expect(
+        lyrics.sungPrefixLength(line, const Duration(milliseconds: 500)),
+        3,
+      );
+    });
+
+    test('缺省 offset 视为 0', () {
+      final lyrics = SongLyrics.fromSubsonic(lineLyrics());
+
+      expect(lyrics.lines.first.start, Duration.zero);
+    });
+  });
 }

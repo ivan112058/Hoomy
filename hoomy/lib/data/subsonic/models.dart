@@ -20,20 +20,20 @@ class SubsonicSong {
   });
 
   factory SubsonicSong.fromJson(Map<String, dynamic> json) => SubsonicSong(
-        id: json['id'] as String,
-        title: json['title'] as String? ?? '',
-        album: json['album'] as String?,
-        artist: json['artist'] as String?,
-        albumId: json['albumId'] as String?,
-        artistId: json['artistId'] as String?,
-        track: _asInt(json['track']),
-        discNumber: _asInt(json['discNumber']),
-        year: _asInt(json['year']),
-        durationSec: _asInt(json['duration']),
-        suffix: json['suffix'] as String?,
-        coverArtId: json['coverArt'] as String?,
-        starred: json['starred'] as String?,
-      );
+    id: json['id'] as String,
+    title: json['title'] as String? ?? '',
+    album: json['album'] as String?,
+    artist: json['artist'] as String?,
+    albumId: json['albumId'] as String?,
+    artistId: json['artistId'] as String?,
+    track: _asInt(json['track']),
+    discNumber: _asInt(json['discNumber']),
+    year: _asInt(json['year']),
+    durationSec: _asInt(json['duration']),
+    suffix: json['suffix'] as String?,
+    coverArtId: json['coverArt'] as String?,
+    starred: json['starred'] as String?,
+  );
 
   final String id;
   final String title;
@@ -71,17 +71,17 @@ class SubsonicAlbum {
   });
 
   factory SubsonicAlbum.fromJson(Map<String, dynamic> json) => SubsonicAlbum(
-        id: json['id'] as String,
-        name: json['name'] as String? ?? json['title'] as String? ?? '',
-        artist: json['artist'] as String?,
-        artistId: json['artistId'] as String?,
-        year: _asInt(json['year']),
-        songCount: _asInt(json['songCount']),
-        durationSec: _asInt(json['duration']),
-        coverArtId: json['coverArt'] as String?,
-        starred: json['starred'] as String?,
-        songs: _songList(json['song']),
-      );
+    id: json['id'] as String,
+    name: json['name'] as String? ?? json['title'] as String? ?? '',
+    artist: json['artist'] as String?,
+    artistId: json['artistId'] as String?,
+    year: _asInt(json['year']),
+    songCount: _asInt(json['songCount']),
+    durationSec: _asInt(json['duration']),
+    coverArtId: json['coverArt'] as String?,
+    starred: json['starred'] as String?,
+    songs: _songList(json['song']),
+  );
 
   final String id;
   final String name;
@@ -108,13 +108,13 @@ class SubsonicArtist {
   });
 
   factory SubsonicArtist.fromJson(Map<String, dynamic> json) => SubsonicArtist(
-        id: json['id'] as String,
-        name: json['name'] as String? ?? '',
-        albumCount: _asInt(json['albumCount']),
-        coverArtId: json['coverArt'] as String?,
-        starred: json['starred'] as String?,
-        albums: _albumList(json['album']),
-      );
+    id: json['id'] as String,
+    name: json['name'] as String? ?? '',
+    albumCount: _asInt(json['albumCount']),
+    coverArtId: json['coverArt'] as String?,
+    starred: json['starred'] as String?,
+    albums: _albumList(json['album']),
+  );
 
   final String id;
   final String name;
@@ -160,10 +160,10 @@ class SubsonicGenre {
   const SubsonicGenre({required this.name, this.songCount, this.albumCount});
 
   factory SubsonicGenre.fromJson(Map<String, dynamic> json) => SubsonicGenre(
-        name: json['value'] as String? ?? '',
-        songCount: _asInt(json['songCount']),
-        albumCount: _asInt(json['albumCount']),
-      );
+    name: json['value'] as String? ?? '',
+    songCount: _asInt(json['songCount']),
+    albumCount: _asInt(json['albumCount']),
+  );
 
   final String name;
   final int? songCount;
@@ -176,24 +176,33 @@ class SubsonicLyrics {
     required this.synced,
     this.artist,
     this.title,
+    this.offsetMs = 0,
     this.lines = const [],
     this.cueLines = const [],
   });
 
   factory SubsonicLyrics.fromJson(Map<String, dynamic> json) => SubsonicLyrics(
-        synced: json['synced'] as bool? ?? false,
-        // 服务端字段名为 displayArtist / displayTitle；无语言信息时 lang 为 "xxx"。
-        artist: json['displayArtist'] as String?,
-        title: json['displayTitle'] as String?,
-        lines: _mapList(json['line'], SubsonicLyricLine.fromJson),
-        // songLyrics v2：逐字时间轴（需请求 enhanced=true）。
-        cueLines: _mapList(json['cueLine'], SubsonicCueLine.fromJson),
-      );
+    synced: json['synced'] as bool? ?? false,
+    // 服务端字段名为 displayArtist / displayTitle；无语言信息时 lang 为 "xxx"。
+    artist: json['displayArtist'] as String?,
+    title: json['displayTitle'] as String?,
+    // LRC 的 [offset:] 由服务端原样返回，客户端负责套用（OpenSubsonic）。
+    offsetMs: _asInt(json['offset']) ?? 0,
+    lines: _mapList(json['line'], SubsonicLyricLine.fromJson),
+    // songLyrics v2：逐字时间轴（需请求 enhanced=true）。
+    cueLines: _mapList(json['cueLine'], SubsonicCueLine.fromJson),
+  );
 
   /// 纯文本歌词时 line 里没有时间戳，整体按静态文本渲染。
   final bool synced;
   final String? artist;
   final String? title;
+
+  /// 时间轴偏移（毫秒），套用到本条目所有 `line`/`cueLine` 的时间戳上。
+  ///
+  /// OpenSubsonic 语义：**正值表示歌词更早出现**，即生效时间 = `start - offset`；
+  /// 缺省视为 0。Navidrome 把 LRC 的 `[offset:]` 原样放这里，不改进 `line.start`。
+  final int offsetMs;
   final List<SubsonicLyricLine> lines;
 
   /// 逐字时间轴；为空表示没有词级数据（不代表没有歌词）。
@@ -226,7 +235,8 @@ class SubsonicCueLine {
     this.cues = const [],
   });
 
-  factory SubsonicCueLine.fromJson(Map<String, dynamic> json) => SubsonicCueLine(
+  factory SubsonicCueLine.fromJson(Map<String, dynamic> json) =>
+      SubsonicCueLine(
         index: _asInt(json['index']),
         startMs: _asInt(json['start']),
         endMs: _asInt(json['end']),
@@ -257,12 +267,12 @@ class SubsonicCue {
   });
 
   factory SubsonicCue.fromJson(Map<String, dynamic> json) => SubsonicCue(
-        startMs: _asInt(json['start']),
-        endMs: _asInt(json['end']),
-        byteStart: _asInt(json['byteStart']),
-        byteEnd: _asInt(json['byteEnd']),
-        value: json['value'] as String? ?? '',
-      );
+    startMs: _asInt(json['start']),
+    endMs: _asInt(json['end']),
+    byteStart: _asInt(json['byteStart']),
+    byteEnd: _asInt(json['byteEnd']),
+    value: json['value'] as String? ?? '',
+  );
 
   final int? startMs;
   final int? endMs;
@@ -275,37 +285,40 @@ class SubsonicCue {
 List<T> _mapList<T>(Object? v, T Function(Map<String, dynamic>) fromJson) =>
     switch (v) {
       null => const [],
-      List l => l
-          .whereType<Map>()
-          .map((e) => fromJson(e.cast<String, dynamic>()))
-          .toList(),
+      List l =>
+        l
+            .whereType<Map>()
+            .map((e) => fromJson(e.cast<String, dynamic>()))
+            .toList(),
       Map m => [fromJson(m.cast<String, dynamic>())],
       _ => const [],
     };
 
 int? _asInt(Object? v) => switch (v) {
-      null => null,
-      int i => i,
-      String s => int.tryParse(s),
-      _ => null,
-    };
+  null => null,
+  int i => i,
+  String s => int.tryParse(s),
+  _ => null,
+};
 
 List<SubsonicSong> _songList(Object? v) => switch (v) {
-      null => const [],
-      List l => l
-          .whereType<Map>()
-          .map((e) => SubsonicSong.fromJson(e.cast<String, dynamic>()))
-          .toList(),
-      Map m => [SubsonicSong.fromJson(m.cast<String, dynamic>())],
-      _ => const [],
-    };
+  null => const [],
+  List l =>
+    l
+        .whereType<Map>()
+        .map((e) => SubsonicSong.fromJson(e.cast<String, dynamic>()))
+        .toList(),
+  Map m => [SubsonicSong.fromJson(m.cast<String, dynamic>())],
+  _ => const [],
+};
 
 List<SubsonicAlbum> _albumList(Object? v) => switch (v) {
-      null => const [],
-      List l => l
-          .whereType<Map>()
-          .map((e) => SubsonicAlbum.fromJson(e.cast<String, dynamic>()))
-          .toList(),
-      Map m => [SubsonicAlbum.fromJson(m.cast<String, dynamic>())],
-      _ => const [],
-    };
+  null => const [],
+  List l =>
+    l
+        .whereType<Map>()
+        .map((e) => SubsonicAlbum.fromJson(e.cast<String, dynamic>()))
+        .toList(),
+  Map m => [SubsonicAlbum.fromJson(m.cast<String, dynamic>())],
+  _ => const [],
+};

@@ -101,13 +101,14 @@ class SongLyrics {
 
   /// 把行级歌词与逐字时间轴合并成一份行列表。
   static List<LyricLine> _mergeLines(SubsonicLyrics raw) {
-    final lines = _linesFromLines(raw.lines);
+    final offset = raw.offsetMs;
+    final lines = _linesFromLines(raw.lines, offset);
     if (raw.cueLines.isEmpty) return lines;
     // 只有 cueLine、没有 line：cueLine 自带文本，直接用它建行。
     if (lines.isEmpty) {
       return [
         for (var i = 0; i < raw.cueLines.length; i++)
-          _lineFromCue(raw.cueLines[i], null),
+          _lineFromCue(raw.cueLines[i], null, offset),
       ];
     }
     final byIndex = <int, SubsonicCueLine>{};
@@ -115,19 +116,27 @@ class SongLyrics {
       byIndex[raw.cueLines[i].index ?? i] = raw.cueLines[i];
     }
     return [
-      for (var i = 0; i < lines.length; i++) _mergeCue(lines[i], byIndex[i]),
+      for (var i = 0; i < lines.length; i++)
+        _mergeCue(lines[i], byIndex[i], offset),
     ];
   }
 
-  static List<LyricLine> _linesFromLines(List<SubsonicLyricLine> raw) => [
+  static List<LyricLine> _linesFromLines(
+    List<SubsonicLyricLine> raw,
+    int offsetMs,
+  ) => [
     for (final line in raw)
-      LyricLine(start: _ms(line.startMs), text: line.value),
+      LyricLine(start: _ms(line.startMs, offsetMs), text: line.value),
   ];
 
   /// 把一条 [cueLine] 贴到行级歌词上；[base] 是行级歌词里的对应行。
-  static LyricLine _mergeCue(LyricLine base, SubsonicCueLine? cue) {
+  static LyricLine _mergeCue(
+    LyricLine base,
+    SubsonicCueLine? cue,
+    int offsetMs,
+  ) {
     if (cue == null) return base;
-    final line = _lineFromCue(cue, base.text);
+    final line = _lineFromCue(cue, base.text, offsetMs);
     return LyricLine(
       start: line.start ?? base.start,
       // 词级字节区间是对 cueLine.value 量的，文本与它一致才不会错位。
@@ -137,18 +146,24 @@ class SongLyrics {
   }
 
   /// 从一条 `cueLine` 建行；[fallbackText] 是行级歌词里的对应文本。
-  static LyricLine _lineFromCue(SubsonicCueLine raw, String? fallbackText) {
+  static LyricLine _lineFromCue(
+    SubsonicCueLine raw,
+    String? fallbackText,
+    int offsetMs,
+  ) {
     final cues = [
       for (final cue in raw.cues)
         LyricCue(
-          start: _ms(cue.startMs),
+          start: _ms(cue.startMs, offsetMs),
           byteStart: cue.byteStart,
           byteEnd: cue.byteEnd,
         ),
     ];
     return LyricLine(
       // 少数服务端不给 cueLine.start，用首个 cue 的 start 兜底。
-      start: _ms(raw.startMs) ?? (cues.isEmpty ? null : cues.first.start),
+      start:
+          _ms(raw.startMs, offsetMs) ??
+          (cues.isEmpty ? null : cues.first.start),
       text: raw.value.isNotEmpty ? raw.value : (fallbackText ?? ''),
       cues: cues,
     );
@@ -165,8 +180,13 @@ class SongLyrics {
   }
 }
 
-Duration? _ms(int? milliseconds) =>
-    milliseconds == null ? null : Duration(milliseconds: milliseconds);
+/// 歌词时间戳 → [Duration]，并套用条目的 [offsetMs]。
+///
+/// OpenSubsonic 的语义：**正 offset 表示歌词更早出现**，所以生效时间 =
+/// `start - offset`（缺省 0）；偏移后为负的时间收敛到 0。
+Duration? _ms(int? milliseconds, int offsetMs) => milliseconds == null
+    ? null
+    : Duration(milliseconds: (milliseconds - offsetMs).clamp(0, 1 << 62));
 
 /// 按 UTF-8 字节闭区间 `[startByte, endByte]` 切出 [text] 的一段。
 ///

@@ -46,6 +46,46 @@ void main() {
       expect(transport.lastQuery['enhanced'], 'true');
     });
 
+    test('解析 offset（LRC 的 [offset:]），缺省为 0', () async {
+      final transport = FakeTransport()
+        ..ok('getLyricsBySongId.view', {
+          'lyricsList': {
+            'structuredLyrics': [
+              {
+                'synced': true,
+                'offset': -350,
+                'line': [
+                  {'start': 1000, 'value': '第一行'},
+                ],
+              },
+            ],
+          },
+        });
+
+      final lyrics = await fakeClient(transport).getStructuredLyrics('s1');
+
+      expect(lyrics!.offsetMs, -350);
+
+      // 服务端不返回 offset 时视为 0。
+      final noOffset = FakeTransport()
+        ..ok('getLyricsBySongId.view', {
+          'lyricsList': {
+            'structuredLyrics': [
+              {
+                'synced': true,
+                'line': [
+                  {'start': 1000, 'value': '第一行'},
+                ],
+              },
+            ],
+          },
+        });
+      expect(
+        (await fakeClient(noOffset).getStructuredLyrics('s1'))!.offsetMs,
+        0,
+      );
+    });
+
     test('逐字档：解析 cueLine/cue 与 UTF-8 字节闭区间', () async {
       final transport = FakeTransport()
         ..ok('getLyricsBySongId.view', {
@@ -202,7 +242,11 @@ void main() {
 
     test('服务端不认识该端点（error 70）时返回 null，交给上层回退', () async {
       final transport = FakeTransport()
-        ..fail('getLyricsBySongId.view', 70, 'The requested data was not found');
+        ..fail(
+          'getLyricsBySongId.view',
+          70,
+          'The requested data was not found',
+        );
 
       expect(await fakeClient(transport).getStructuredLyrics('s1'), isNull);
     });
@@ -213,9 +257,7 @@ void main() {
 
       await expectLater(
         fakeClient(transport).getStructuredLyrics('s1'),
-        throwsA(
-          isA<SubsonicException>().having((e) => e.code, 'code', 40),
-        ),
+        throwsA(isA<SubsonicException>().having((e) => e.code, 'code', 40)),
       );
     });
   });
@@ -231,10 +273,8 @@ void main() {
           },
         });
 
-      final lyrics = await fakeClient(transport).getLyrics(
-        artist: '周杰伦',
-        title: '晴天',
-      );
+      final lyrics = await fakeClient(transport)
+          .getLyrics(artist: '周杰伦', title: '晴天');
 
       expect(lyrics, isNotNull);
       expect(lyrics!.synced, isFalse);
@@ -282,11 +322,8 @@ void main() {
           },
         });
 
-      final lyrics = await fakeClient(transport).getLyricsForSong(
-        songId: 's1',
-        artist: '周杰伦',
-        title: '晴天',
-      );
+      final lyrics = await fakeClient(transport)
+          .getLyricsForSong(songId: 's1', artist: '周杰伦', title: '晴天');
 
       expect(lyrics!.lines.single.value, '第一行');
       expect(transport.requests, hasLength(1));
@@ -299,11 +336,8 @@ void main() {
           'lyrics': {'value': '第一行\n第二行'},
         });
 
-      final lyrics = await fakeClient(transport).getLyricsForSong(
-        songId: 's1',
-        artist: '周杰伦',
-        title: '晴天',
-      );
+      final lyrics = await fakeClient(transport)
+          .getLyricsForSong(songId: 's1', artist: '周杰伦', title: '晴天');
 
       expect(lyrics, isNotNull);
       expect(lyrics!.synced, isFalse);
@@ -323,11 +357,8 @@ void main() {
           'lyrics': {'value': '纯文本歌词'},
         });
 
-      final lyrics = await fakeClient(transport).getLyricsForSong(
-        songId: 's1',
-        artist: '周杰伦',
-        title: '晴天',
-      );
+      final lyrics = await fakeClient(transport)
+          .getLyricsForSong(songId: 's1', artist: '周杰伦', title: '晴天');
 
       expect(lyrics!.lines.single.value, '纯文本歌词');
       expect(transport.lastEndpoint, 'getLyrics.view');
@@ -338,11 +369,8 @@ void main() {
         ..ok('getLyricsBySongId.view')
         ..ok('getLyrics.view');
 
-      final lyrics = await fakeClient(transport).getLyricsForSong(
-        songId: 's1',
-        artist: '周杰伦',
-        title: '晴天',
-      );
+      final lyrics = await fakeClient(transport)
+          .getLyricsForSong(songId: 's1', artist: '周杰伦', title: '晴天');
 
       expect(lyrics, isNull);
       expect(transport.requests, hasLength(2));
