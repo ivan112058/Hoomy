@@ -102,7 +102,23 @@ class JustAudioPlayerEngine implements PlayerEngine {
     _emit(PlayerState(false, ProcessingState.loading));
     try {
       // 不传 headers：认证在 URL 查询串里（ADR-0010）。
-      await _player.setUrl(uri.toString());
+      //
+      // 显式用 ProgressiveAudioSource + `preferPreciseDurationAndTiming`：
+      // iOS 的 AVFoundation 默认按估算做「时间 ↔ 字节」映射，VBR FLAC 上
+      // 会让 seek 落在目标之前 5–30 秒（just_audio #440，ADR-0010 记录的
+      // FLAC 风险）。该开关映射为 `AVURLAssetPreferPreciseDurationAndTimingKey`，
+      // 要求按文件真实时间轴解析，代价是加载时多读一点索引。Android 侧忽略
+      // 这个 Darwin 选项，行为不变。
+      await _player.setAudioSource(
+        ProgressiveAudioSource(
+          uri,
+          options: const ProgressiveAudioSourceOptions(
+            darwinAssetOptions: DarwinAssetOptions(
+              preferPreciseDurationAndTiming: true,
+            ),
+          ),
+        ),
+      );
     } on PlayerException catch (e) {
       _emitError(e);
     } on PlayerInterruptedException {
