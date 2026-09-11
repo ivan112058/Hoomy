@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_controller.dart';
+import '../lyrics/song_lyrics.dart';
 import 'album_repository.dart';
 import 'artist_repository.dart';
 import 'genre_repository.dart';
+import 'lyrics_repository.dart';
 import 'playlist_repository.dart';
 import 'song_repository.dart';
 import 'star_repository.dart';
@@ -42,3 +44,29 @@ final starRepositoryProvider = Provider<StarRepository?>((ref) {
   final client = ref.watch(subsonicClientProvider);
   return client == null ? null : StarRepository(client);
 });
+
+final lyricsRepositoryProvider = Provider<LyricsRepository?>((ref) {
+  final client = ref.watch(subsonicClientProvider);
+  return client == null ? null : LyricsRepository(client);
+});
+
+/// 一首歌的歌词请求身份。
+///
+/// 用记录（record）而不是 `SubsonicSong` 做 family 键：记录按值相等，
+/// 队列重建产生的新曲目对象不会让同一个 id 重新取一次歌词。
+typedef LyricsRequest = ({String songId, String artist, String title});
+
+/// 当前曲目的歌词；界面在播放页一打开就订阅它，从而**预取**（ADR-0007），
+/// 切到歌词态不再发起请求。
+///
+/// `autoDispose`：播放页关闭即释放本次订阅，缓存留在 [LyricsRepository] 里。
+final lyricsProvider = FutureProvider.autoDispose
+    .family<SongLyrics?, LyricsRequest>((ref, request) async {
+      final repository = ref.watch(lyricsRepositoryProvider);
+      if (repository == null) return null;
+      return repository.lyricsFor(
+        songId: request.songId,
+        artist: request.artist,
+        title: request.title,
+      );
+    });

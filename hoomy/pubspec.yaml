@@ -47,6 +47,8 @@ dependencies:
   path_provider: ^2.1.6
   # 拼音首字母分组（ADR-0009）
   lpinyin: ^2.0.3
+  # 歌词态屏幕常亮（ADR-0007）
+  wakelock_plus: ^1.8.0
 
 dev_dependencies:
   flutter_test:

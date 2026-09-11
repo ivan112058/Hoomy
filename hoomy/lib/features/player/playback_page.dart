@@ -1,12 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/screen/screen_awake.dart';
 import '../../core/theme/hoomy_theme.dart';
+import '../../data/repositories/repository_providers.dart';
+import '../../data/subsonic/models.dart';
 import '../../player/playback_controller.dart';
 import '../shared/cover_art.dart';
 import '../shared/duration_text.dart';
 import '../shared/song_secondary_text.dart';
+import 'lyrics_view.dart';
 import 'playback_controls.dart';
 import 'playback_listenable.dart';
 import 'queue_overlay.dart';
@@ -74,13 +79,59 @@ Future<void> openQueueOverlay(
 /// 全屏播放页：静止大封面、歌名与歌手、可拖动进度条、五键中控。
 ///
 /// 刻意**没有**唱盘旋转、唱针与搓碟交互（`CONTEXT.md`「播放页」/ADR-0003），
-/// 封面就是一张静止的方图。点封面的歌词切换属票据 10，这里不做。
+/// 封面就是一张静止的方图。点封面与歌词**同层切换**（ADR-0007）：封面与歌词
+/// 占据同一块区域，进度条与中控始终在下方。
+///
+/// 歌词在页面打开时随当前曲目**预取**（ADR-0007），切到歌词态不再发请求；
+/// 歌词态的「屏幕常亮」开关离开歌词态或播放页即清除。
 ///
 /// 页面打开时取一次当前曲目；没有当前曲目时显示空态而不是崩溃。
-class PlaybackPage extends StatelessWidget {
+class PlaybackPage extends ConsumerStatefulWidget {
   const PlaybackPage({super.key, required this.controller});
 
   final PlaybackController controller;
+
+  @override
+  ConsumerState<PlaybackPage> createState() => _PlaybackPageState();
+}
+
+class _PlaybackPageState extends ConsumerState<PlaybackPage> {
+  /// 当前展示的是封面还是歌词（同层切换）。
+  bool _showLyrics = false;
+
+  /// 歌词态的屏幕常亮开关。
+  bool _keepAwake = false;
+
+  /// 在 `initState` 里取好实现：`dispose` 时不再碰 `ref`（此时容器可能已在拆除）。
+  late final ScreenAwake _screenAwake;
+
+  @override
+  void initState() {
+    super.initState();
+    _screenAwake = ref.read(screenAwakeProvider);
+  }
+
+  @override
+  void dispose() {
+    // 离开播放页时清除常亮（ADR-0007）。
+    if (_keepAwake) unawaited(_screenAwake.setEnabled(false));
+    super.dispose();
+  }
+
+  void _setShowLyrics(bool show) {
+    if (show == _showLyrics) return;
+    setState(() {
+      _showLyrics = show;
+      // 离开歌词态即关掉常亮：这个开关只在歌词里有意义。
+      if (!show) _keepAwake = false;
+    });
+    if (!show) unawaited(_screenAwake.setEnabled(false));
+  }
+
+  void _setKeepAwake(bool value) {
+    setState(() => _keepAwake = value);
+    unawaited(_screenAwake.setEnabled(value));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,23 +145,42 @@ class PlaybackPage extends StatelessWidget {
           builder: (context, controller) {
             final song = controller.session.currentSong;
             if (song == null) return const _EmptyPlayback();
+            // 曲目身份用记录表示：队列重建产生的新对象不会让同一首重取歌词。
+            final request = (
+              songId: song.id,
+              artist: song.artist ?? '',
+              title: song.title,
+            );
+            // 打开播放页即订阅歌词——这就是**预取**（ADR-0007）：切到歌词态
+            // 时数据已就位，不额外发请求。
+            final lyrics = ref.watch(lyricsProvider(request));
             return Column(
               children: [
-                _PlaybackTopBar(controller: controller),
-                // 封面占据标题栏与进度条之间的全部剩余空间，始终保持 1:1。
+                _PlaybackTopBar(
+                  controller: controller,
+                  showKeepAwake: _showLyrics,
+                  keepAwake: _keepAwake,
+                  onToggleKeepAwake: () => _setKeepAwake(!_keepAwake),
+                ),
                 Expanded(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: CoverArt(
-                          coverArtId: song.coverArtId,
-                          // 大图：让服务端按屏幕量级返回，不在客户端放大缩略图。
-                          size: 1024,
-                        ),
-                      ),
-                    ),
+                  // 封面与歌词同层：淡入淡出切换，不是两层页面。
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: _showLyrics
+                        ? LyricsView(
+                            key: const ValueKey('lyrics'),
+                            controller: controller,
+                            songId: song.id,
+                            lyrics: lyrics,
+                            onTap: () => _setShowLyrics(false),
+                            onRetry: () =>
+                                ref.invalidate(lyricsProvider(request)),
+                          )
+                        : _CoverArea(
+                            key: const ValueKey('cover'),
+                            song: song,
+                            onTap: () => _setShowLyrics(true),
+                          ),
                   ),
                 ),
                 _ProgressBar(controller: controller),
@@ -128,15 +198,58 @@ class PlaybackPage extends StatelessWidget {
   }
 }
 
-/// 顶栏：收起、歌名 + 歌手、队列入口。
+/// 播放页的封面区：静止大封面，点一下切到歌词（ADR-0007）。
+class _CoverArea extends StatelessWidget {
+  const _CoverArea({super.key, required this.song, required this.onTap});
+
+  final SubsonicSong song;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      // 整块区域可点，不必精确点中封面图。
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: CoverArt(
+              coverArtId: song.coverArtId,
+              // 大图：让服务端按屏幕量级返回，不在客户端放大缩略图。
+              size: 1024,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 顶栏：收起、歌名 + 歌手、歌词态的常亮开关、队列入口。
 ///
 /// 与层级页面的标题栏同一口径：高度 [HoomyDimens.titleBarHeight]（50dp）、
 /// 标题 [HoomyDimens.titleFontSize]（20sp，`CONTEXT.md`「标题栏」）。没有当前
 /// 曲目时标题留空，顶栏结构不变 —— 收起按钮不会因为空态消失。
 class _PlaybackTopBar extends StatelessWidget {
-  const _PlaybackTopBar({required this.controller});
+  const _PlaybackTopBar({
+    required this.controller,
+    required this.showKeepAwake,
+    required this.keepAwake,
+    required this.onToggleKeepAwake,
+  });
 
   final PlaybackController controller;
+
+  /// 是否处于歌词态：常亮开关只在歌词态出现。
+  final bool showKeepAwake;
+
+  /// 常亮当前是否开启。
+  final bool keepAwake;
+
+  final VoidCallback onToggleKeepAwake;
 
   @override
   Widget build(BuildContext context) {
@@ -150,6 +263,12 @@ class _PlaybackTopBar extends StatelessWidget {
             onClose: () => Navigator.of(context).maybePop(),
           ),
         ),
+        if (showKeepAwake)
+          IconButton(
+            icon: Icon(keepAwake ? Icons.lightbulb : Icons.lightbulb_outline),
+            tooltip: keepAwake ? '关闭屏幕常亮' : '屏幕常亮',
+            onPressed: onToggleKeepAwake,
+          ),
         PlaybackListenable(
           select: (controller) => controller.session.queue.queue.length,
           builder: (context, controller) => IconButton(

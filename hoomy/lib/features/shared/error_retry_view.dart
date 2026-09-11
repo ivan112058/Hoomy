@@ -1,0 +1,42 @@
+import 'package:flutter/material.dart';
+
+import '../../data/subsonic/subsonic_client.dart';
+
+/// 取数失败：给出可读原因与「重试」，不留下空白页。
+///
+/// 列表页的 `AsyncView` 与播放页的歌词都用这一份，避免两处各写一套
+/// 「文案 + 重试按钮」的形状。
+class ErrorRetryView extends StatelessWidget {
+  const ErrorRetryView({
+    super.key,
+    required this.message,
+    required this.onRetry,
+  });
+
+  /// 展示给用户的失败原因。
+  final String message;
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            OutlinedButton(onPressed: onRetry, child: const Text('重试')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// `SubsonicException` 已由协议层映射成可读文案，优先取它；
+/// 其它异常退化为 `toString()`，只在开发期遇到，用于定位。
+String describeError(Object error) =>
+    error is SubsonicException ? error.message : '$error';

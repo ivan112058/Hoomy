@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../data/subsonic/subsonic_client.dart';
+import 'error_retry_view.dart';
 
 /// 列表页通用的异步骨架：加载中 / 错误重试 / 空态。
 ///
@@ -46,7 +46,10 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _ErrorView(error: snapshot.error!, onRetry: _retry);
+          return ErrorRetryView(
+            message: describeError(snapshot.error!),
+            onRetry: _retry,
+          );
         }
         final data = snapshot.data;
         if (data == null || (data is Iterable && data.isEmpty)) {
@@ -57,36 +60,6 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
     );
   }
 }
-
-/// 取数失败：给出可读原因与「重试」，不留下空白页。
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.error, required this.onRetry});
-
-  final Object error;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_describe(error), textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            OutlinedButton(onPressed: onRetry, child: const Text('重试')),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// `SubsonicException` 已由协议层映射成可读文案，优先取它；
-/// 其它异常退化为 `toString()`，只在开发期遇到，用于定位。
-String _describe(Object error) =>
-    error is SubsonicException ? error.message : '$error';
 
 /// 页面级脚手架：统一 AppBar。
 class PageScaffold extends StatelessWidget {
