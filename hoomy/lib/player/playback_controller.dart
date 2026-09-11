@@ -154,6 +154,11 @@ class PlaybackController extends ChangeNotifier {
   /// （票据 05 决策 8）。
   Future<void> seek(Duration position) => _engine.seek(position);
 
+  /// 设置音量（0.0–1.0）。
+  ///
+  /// 音频会话里的「压低音量」（duck）打断用它，界面不直接碰引擎。
+  Future<void> setVolume(double volume) => _engine.setVolume(volume);
+
   /// 切换循环模式。
   void setRepeatMode(RepeatMode mode) => _machine.setRepeatMode(mode);
 

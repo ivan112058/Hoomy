@@ -1,7 +1,13 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- 串流播放与 Subsonic API 都要联网。debug/profile 清单里有这一条，
          但 release 构建只合并本清单：缺了它，正式包会一律连不上服务器。 -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 后台播放：音频前台服务（audio_service，ADR-0008）。
+         FOREGROUND_SERVICE_MEDIA_PLAYBACK 是 targetSdk 34+ 的必需声明。 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
 
     <application
         android:label="hoomy"
@@ -30,6 +36,27 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- 媒体会话的前台服务：后台播放由此维持，TV 的 Now Playing 卡片由
+             活跃的 MediaSession 驱动（ADR-0008）。 -->
+        <service
+            android:name="com.ryanheise.audioservice.AudioService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="true"
+            tools:ignore="Instantiatable">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService"/>
+            </intent-filter>
+        </service>
+        <!-- 媒体键（含 TV 遥控器的播放/暂停）：系统经它路由到 MediaSession，
+             应用不自行分发。 -->
+        <receiver
+            android:name="com.ryanheise.audioservice.MediaButtonReceiver"
+            android:exported="true"
+            tools:ignore="Instantiatable">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON"/>
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

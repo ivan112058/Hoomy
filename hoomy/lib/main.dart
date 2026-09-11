@@ -3,11 +3,42 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/hoomy_theme.dart';
 import 'data/auth/auth_controller.dart';
+import 'data/cover/cover_cache_provider.dart';
 import 'features/auth/login_page.dart';
 import 'features/shell/home_shell.dart';
+import 'player/hoomy_audio_handler.dart';
+import 'player/player_providers.dart';
 
-void main() {
-  runApp(const ProviderScope(child: HoomyApp()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 封面磁盘缓存（票据 07）：启动时把目录与下载器准备好。拿不到目录就没有
+  // 磁盘缓存，界面直连服务端，不影响使用。
+  final coverCache = await openCoverCache();
+
+  // 系统媒体会话（票据 07）：Android 的媒体通知／TV 遥控器媒体键依赖它。
+  // 启动失败只是失去系统集成，不能拦下 App。
+  final audioHandler = await _startAudioService();
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        if (coverCache != null)
+          coverCacheProvider.overrideWithValue(coverCache),
+        if (audioHandler != null)
+          audioHandlerProvider.overrideWithValue(audioHandler),
+      ],
+      child: const HoomyApp(),
+    ),
+  );
+}
+
+Future<HoomyAudioHandler?> _startAudioService() async {
+  try {
+    return await HoomyAudioHandler.init();
+  } catch (_) {
+    return null;
+  }
 }
 
 /// Hoomy：局域网 NAS 音乐播放器（Navidrome 客户端）。

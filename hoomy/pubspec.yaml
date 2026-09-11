@@ -43,6 +43,8 @@ dependencies:
   audio_session: ^0.2.4
   shared_preferences: ^2.5.5
   crypto: ^3.0.7
+  # 封面磁盘缓存目录（ADR-0006）
+  path_provider: ^2.1.6
   # 拼音首字母分组（ADR-0009）
   lpinyin: ^2.0.3
 
