@@ -48,7 +48,9 @@ void main() {
       coverCacheProvider.overrideWithValue(cache),
     ],
     child: const MaterialApp(
-      home: Scaffold(body: Center(child: CoverArt(coverArtId: 'c1'))),
+      home: Scaffold(
+        body: Center(child: CoverArt(coverArtId: 'c1')),
+      ),
     ),
   );
 

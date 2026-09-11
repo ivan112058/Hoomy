@@ -29,7 +29,7 @@ class CoverCache {
   /// [coverArtId] 决定缓存身份；[size] 参与文件名（同一张图的不同尺寸各存一份）；
   /// [uri] 是下载地址（含认证查询串）。任何失败返回 null，调用方降级为直连。
   Future<File?> file(String coverArtId, {int? size, required Uri uri}) {
-    final name = _fileName(coverArtId, size);
+    final name = cacheKey(coverArtId, size: size);
     return _inFlight.putIfAbsent(name, () {
       final load = _load(name, uri);
       // 回调体必须用块语句丢弃 `remove` 的返回值：`whenComplete` 会把回调返回的
@@ -41,13 +41,26 @@ class CoverCache {
     });
   }
 
+  /// 缓存身份：界面用它判断「要不要重新问缓存」，与落盘文件名同源，避免两边各写
+  /// 一套编码规则。
+  ///
+  /// MVP 只有一台服务器（多服务器在多服务器票据之外），因此身份里不含服务器。
+  String cacheKey(String coverArtId, {int? size}) {
+    final encoded = Uri.encodeComponent(coverArtId);
+    return size == null ? encoded : '$encoded.s$size';
+  }
+
   /// 缓存当前占用的字节数；目录不存在或不可读时按 0 计。
+  ///
+  /// 下载中的 `.tmp` 不计入：它尚未成为可用缓存，计入会让「占用」在下载时虚高。
   Future<int> totalBytes() async {
     try {
       if (!await directory.exists()) return 0;
       var total = 0;
       await for (final entity in directory.list(followLinks: false)) {
-        if (entity is File) total += await entity.length();
+        if (entity is File && !entity.path.endsWith(_tempSuffix)) {
+          total += await entity.length();
+        }
       }
       return total;
     } catch (_) {
@@ -73,7 +86,7 @@ class CoverCache {
 
   Future<File?> _load(String name, Uri uri) async {
     try {
-      final target = File('${directory.path}/$name');
+      final target = File('${directory.path}/$name$_fileSuffix');
       if (await target.exists()) {
         if (await target.length() > 0) return target;
         // 上次写到一半留下的空文件：视为未命中，删掉重下。
@@ -85,7 +98,7 @@ class CoverCache {
 
       await directory.create(recursive: true);
       // 先写临时文件再改名：下载中断不会留下半张图被当成命中。
-      final tmp = File('${directory.path}/$name.tmp');
+      final tmp = File('${target.path}$_tempSuffix');
       await tmp.writeAsBytes(bytes, flush: true);
       await tmp.rename(target.path);
       return target;
@@ -94,9 +107,9 @@ class CoverCache {
     }
   }
 
-  /// 缓存文件名：id 做 URI 编码以免出现路径分隔符；尺寸不同则各存一份。
-  String _fileName(String coverArtId, int? size) {
-    final encoded = Uri.encodeComponent(coverArtId);
-    return size == null ? '$encoded.img' : '$encoded.s$size.img';
-  }
+  /// 缓存文件后缀；封面格式由内容决定，不靠扩展名。
+  static const _fileSuffix = '.img';
+
+  /// 下载中的临时文件后缀（[totalBytes] 不计入）。
+  static const _tempSuffix = '.tmp';
 }

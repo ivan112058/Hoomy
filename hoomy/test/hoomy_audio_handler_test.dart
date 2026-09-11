@@ -11,8 +11,8 @@ import 'fake_player_engine.dart';
 
 /// 票据 07：`AudioHandler` 是播放状态的权威持有者。
 ///
-/// 这里不碰平台：`BaseAudioHandler` 的发布流是纯 Dart。验证两件事 ——
-/// 系统命令转发到同一个控制器，控制器状态发布给系统。
+/// 这里不碰平台：`BaseAudioHandler` 的发布流是纯 Dart。验证三件事 ——
+/// 控制器由 handler 创建并持有、系统命令转发到同一个控制器、控制器状态发布给系统。
 void main() {
   Uri resolveUri(String id) =>
       Uri.parse('http://nas.local:4533/rest/stream.view?id=$id&format=raw');
@@ -31,15 +31,20 @@ void main() {
       ),
   ];
 
-  ({FakePlayerEngine engine, PlaybackController controller, HoomyAudioHandler handler})
+  ({
+    FakePlayerEngine engine,
+    PlaybackController controller,
+    HoomyAudioHandler handler,
+  })
   build() {
     final engine = FakePlayerEngine();
-    final controller = PlaybackController(
+    final handler = HoomyAudioHandler();
+    // 控制器由 handler 创建并持有 —— 界面拿到的就是这一个。
+    final controller = handler.attach(
       engine: engine,
       streamUriOf: resolveUri,
+      coverArtUriOf: coverUri,
     );
-    final handler = HoomyAudioHandler()
-      ..attach(controller, coverArtUriOf: coverUri);
     return (engine: engine, controller: controller, handler: handler);
   }
 
@@ -79,8 +84,10 @@ void main() {
     test('没有当前曲目时清空 mediaItem，状态回到 idle', () async {
       final (:engine, :controller, :handler) = build();
       expect(handler.mediaItem.value, isNull);
-      expect(handler.playbackState.value.processingState,
-          AudioProcessingState.idle);
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.idle,
+      );
 
       await controller.playQueue(songs(1));
       await pumpEventQueue();
@@ -96,11 +103,17 @@ void main() {
 
       controller.setRepeatMode(RepeatMode.one);
       await pumpEventQueue();
-      expect(handler.playbackState.value.repeatMode, AudioServiceRepeatMode.one);
+      expect(
+        handler.playbackState.value.repeatMode,
+        AudioServiceRepeatMode.one,
+      );
 
       controller.setRepeatMode(RepeatMode.all);
       await pumpEventQueue();
-      expect(handler.playbackState.value.repeatMode, AudioServiceRepeatMode.all);
+      expect(
+        handler.playbackState.value.repeatMode,
+        AudioServiceRepeatMode.all,
+      );
 
       controller.setShuffle(true);
       await pumpEventQueue();
@@ -117,7 +130,7 @@ void main() {
       await controller.dispose();
     });
 
-    test('进度不作为状态反复推送，但位置信息随时点更新', () async {
+    test('进度不作为状态反复推送', () async {
       final (:engine, :controller, :handler) = build();
       await controller.playQueue(songs(1));
       engine.emitState(
@@ -133,6 +146,8 @@ void main() {
       engine.emitPosition(const Duration(seconds: 10));
       await pumpEventQueue();
       expect(identical(handler.playbackState.value, before), isTrue);
+
+      await controller.dispose();
     });
   });
 
@@ -161,34 +176,67 @@ void main() {
       await controller.dispose();
     });
 
-    test('stop 暂停播放并把系统状态置为 idle', () async {
+    test('stop 清空队列、暂停，并把系统状态置为 idle', () async {
       final (:engine, :controller, :handler) = build();
-      await controller.playQueue(songs(1));
+      await controller.playQueue(songs(2));
       await pumpEventQueue();
 
       await handler.stop();
 
       expect(engine.pauseCount, 1);
-      expect(handler.playbackState.value.processingState,
-          AudioProcessingState.idle);
+      expect(controller.session.hasSession, isFalse, reason: '停止要连队列一起清掉');
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.idle,
+      );
 
       await controller.dispose();
     });
   });
 
-  test('换控制器后不再听旧控制器（退出再登录的场景）', () async {
+  test('detach 后不再听旧控制器，系统侧回到空态', () async {
+    final (:engine, :controller, :handler) = build();
+    await controller.playQueue(songs(1));
+    await pumpEventQueue();
+    expect(handler.mediaItem.value?.id, 's0');
+
+    handler.detach(controller);
+    expect(handler.mediaItem.value, isNull);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    // 旧控制器继续变化也不再发布。
+    await controller.next();
+    await pumpEventQueue();
+    expect(handler.mediaItem.value, isNull);
+
+    await controller.dispose();
+  });
+
+  test('换控制器后旧控制器不再影响系统状态', () async {
     final first = build();
     await first.controller.playQueue(songs(1));
     await pumpEventQueue();
     expect(first.handler.mediaItem.value?.id, 's0');
 
-    final second = build();
-    first.handler.attach(second.controller, coverArtUriOf: coverUri);
+    // 重新 attach 会换成新控制器（退出再登录的场景）。
+    final rebound = first.handler.attach(
+      engine: FakePlayerEngine(),
+      streamUriOf: resolveUri,
+      coverArtUriOf: coverUri,
+    );
     await pumpEventQueue();
     // 新控制器还没有队列：系统侧应清空，而不是留着旧曲目。
     expect(first.handler.mediaItem.value, isNull);
 
+    // 旧控制器继续变化也不再影响 handler。
+    await first.controller.next();
+    await pumpEventQueue();
+    expect(first.handler.mediaItem.value, isNull);
+
     await first.controller.dispose();
-    await second.controller.dispose();
+    await rebound.dispose();
   });
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/auth/auth_controller.dart';
@@ -36,23 +37,30 @@ final playerEngineProvider = Provider<PlayerEngine?>((ref) {
 /// 播放接线：状态机 + 引擎，界面唯一的播放入口。
 ///
 /// 控制器创建后立刻接两处（票据 07）：
-/// - **系统媒体会话**：挂到 [audioHandlerProvider]，系统媒体键经它进来，
-///   播放状态经它出去。
+/// - **系统媒体会话**：生产由 [audioHandlerProvider] **创建并持有**控制器
+///   （ADR-0008 的权威持有者），这里拿到的是它持有的那一个；测试与无系统
+///   集成时直接建控制器，行为不变。
 /// - **音频会话**：`audio_session` 在引擎（音频初始化）之后配置音乐类别，
 ///   并订阅打断与耳机拔出。
+///
+/// ADR-0008 说「界面从 audio_service 读状态」在本项目落地为：界面读的控制器由
+/// handler 创建并持有，界面从不触达 `just_audio` 内核；进度每 ~200ms 的高频更新
+/// 仍由控制器承担，不把系统状态流当进度源（audio_service 的 `PlaybackState`
+/// 只在状态变化时发布）。
 final playerControllerProvider = Provider<PlaybackController?>((ref) {
   final client = ref.watch(subsonicClientProvider);
   final engine = ref.watch(playerEngineProvider);
   final streamUriOf = ref.watch(streamUriResolverProvider);
   if (client == null || engine == null || streamUriOf == null) return null;
 
-  final controller = PlaybackController(
-    engine: engine,
-    streamUriOf: streamUriOf,
-  );
-  ref
-      .watch(audioHandlerProvider)
-      ?.attach(controller, coverArtUriOf: client.coverArtUri);
+  final handler = ref.watch(audioHandlerProvider);
+  final controller =
+      handler?.attach(
+        engine: engine,
+        streamUriOf: streamUriOf,
+        coverArtUriOf: client.coverArtUri,
+      ) ??
+      PlaybackController(engine: engine, streamUriOf: streamUriOf);
 
   // 音频会话接线是异步的（要取平台全局会话）；期间若控制器已被释放，
   // 就地把刚建立的监听丢掉，不留悬挂订阅。
@@ -66,14 +74,17 @@ final playerControllerProvider = Provider<PlaybackController?>((ref) {
         return;
       }
       audioSession = session;
-    } catch (_) {
-      // 平台没有音频会话能力（或测试环境）：降级为仅前台播放。
+    } catch (e) {
+      // 平台没有音频会话能力（或测试环境）：降级为仅前台播放。打断与耳机拔出
+      // 保护因此不可用，但没有可呈现给用户的位置，留日志供定位。
+      debugPrint('音频会话接线失败，打断与耳机拔出保护不可用：$e');
     }
   }());
 
   ref.onDispose(() {
     disposed = true;
     audioSession?.dispose();
+    handler?.detach(controller);
     controller.dispose();
   });
   return controller;

@@ -28,12 +28,15 @@ class PlaybackAudioSession {
     PlaybackController controller,
   ) async {
     final session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration.music());
-    return PlaybackAudioSession(
+    // 先订阅再配置：配置本身是异步的，早订阅可以缩小「开始播放但音乐类别尚未
+    // 落定」的窗口。
+    final binding = PlaybackAudioSession(
       controller,
       interruptions: session.interruptionEventStream,
       becomingNoisy: session.becomingNoisyEventStream,
     );
+    await session.configure(const AudioSessionConfiguration.music());
+    return binding;
   }
 
   /// duck 打断期间压到的音量。

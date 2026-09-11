@@ -39,7 +39,7 @@ class _CoverArtState extends ConsumerState<CoverArt> {
     final uri = client.coverArtUri(id, size: widget.size);
     if (cache == null) return _network(context, uri);
 
-    final key = '${id}_${widget.size ?? ''}';
+    final key = cache.cacheKey(id, size: widget.size);
     if (_cacheKey != key) {
       _cacheKey = key;
       _cached = cache.file(id, size: widget.size, uri: uri);

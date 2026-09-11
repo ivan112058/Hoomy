@@ -14,6 +14,9 @@ import 'fake_player_engine.dart';
 ///
 /// 会话逻辑只依赖两条事件流（打断、设备变化），注入假流即可脱离设备验证；
 /// 生产由 `PlaybackAudioSession.attach` 从全局 `AudioSession` 取真流。
+///
+/// **这里只验证 Dart 侧的翻译**（收到打断/拔出事件后该暂停还是恢复）：设备是否
+/// 真的发出这些事件、后台能否续播，属真机验收，不由这些用例担保。
 void main() {
   Uri resolveUri(String id) =>
       Uri.parse('http://nas.local:4533/rest/stream.view?id=$id&format=raw');
@@ -54,7 +57,10 @@ void main() {
     return (engine: engine, controller: controller, session: session);
   }
 
-  Future<void> playing(FakePlayerEngine engine, PlaybackController controller) async {
+  Future<void> playing(
+    FakePlayerEngine engine,
+    PlaybackController controller,
+  ) async {
     await controller.playQueue(songs(3), startIndex: 0);
     engine.emitState(
       const PlayerEngineState(playing: true, status: PlayerEngineStatus.ready),
@@ -67,11 +73,15 @@ void main() {
     await playing(engine, controller);
     expect(controller.session.playing, isTrue);
 
-    interruptions.add(AudioInterruptionEvent(true, AudioInterruptionType.pause));
+    interruptions.add(
+      AudioInterruptionEvent(true, AudioInterruptionType.pause),
+    );
     await pumpEventQueue();
     expect(engine.pauseCount, 1, reason: '来电／其他应用抢占应暂停');
 
-    interruptions.add(AudioInterruptionEvent(false, AudioInterruptionType.pause));
+    interruptions.add(
+      AudioInterruptionEvent(false, AudioInterruptionType.pause),
+    );
     await pumpEventQueue();
     expect(engine.playCount, 2, reason: '打断结束后应恢复播放');
 
@@ -83,11 +93,15 @@ void main() {
     final (:engine, :controller, :session) = build();
     await playing(engine, controller);
 
-    interruptions.add(AudioInterruptionEvent(true, AudioInterruptionType.unknown));
+    interruptions.add(
+      AudioInterruptionEvent(true, AudioInterruptionType.unknown),
+    );
     await pumpEventQueue();
     expect(engine.pauseCount, 1);
 
-    interruptions.add(AudioInterruptionEvent(false, AudioInterruptionType.unknown));
+    interruptions.add(
+      AudioInterruptionEvent(false, AudioInterruptionType.unknown),
+    );
     await pumpEventQueue();
     expect(engine.playCount, 2);
 
@@ -106,9 +120,13 @@ void main() {
     final playsBefore = engine.playCount;
     final pausesBefore = engine.pauseCount;
 
-    interruptions.add(AudioInterruptionEvent(true, AudioInterruptionType.pause));
+    interruptions.add(
+      AudioInterruptionEvent(true, AudioInterruptionType.pause),
+    );
     await pumpEventQueue();
-    interruptions.add(AudioInterruptionEvent(false, AudioInterruptionType.pause));
+    interruptions.add(
+      AudioInterruptionEvent(false, AudioInterruptionType.pause),
+    );
     await pumpEventQueue();
 
     expect(engine.pauseCount, pausesBefore);
@@ -127,7 +145,9 @@ void main() {
     expect(engine.pauseCount, 0);
     expect(engine.volumes.last, lessThan(1.0));
 
-    interruptions.add(AudioInterruptionEvent(false, AudioInterruptionType.duck));
+    interruptions.add(
+      AudioInterruptionEvent(false, AudioInterruptionType.duck),
+    );
     await pumpEventQueue();
     expect(engine.volumes.last, 1.0);
 
@@ -144,7 +164,9 @@ void main() {
     expect(engine.pauseCount, 1);
 
     // 随后的打断结束事件不应把播放顶回来。
-    interruptions.add(AudioInterruptionEvent(false, AudioInterruptionType.pause));
+    interruptions.add(
+      AudioInterruptionEvent(false, AudioInterruptionType.pause),
+    );
     await pumpEventQueue();
     expect(engine.playCount, 1);
 
@@ -157,7 +179,9 @@ void main() {
     await playing(engine, controller);
     session.dispose();
 
-    interruptions.add(AudioInterruptionEvent(true, AudioInterruptionType.pause));
+    interruptions.add(
+      AudioInterruptionEvent(true, AudioInterruptionType.pause),
+    );
     becomingNoisy.add(null);
     await pumpEventQueue();
 

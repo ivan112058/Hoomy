@@ -84,13 +84,18 @@ void main() {
     expect(requests, hasLength(3), reason: '三个不同的缓存身份都应命中');
   });
 
-  test('占用可被查询：按落盘字节累加', () async {
+  test('占用可被查询：按落盘字节累加，下载中的临时文件不计入', () async {
     final (:cache, :requests) = counting();
     expect(await cache.totalBytes(), 0);
 
     await cache.file('c1', uri: uri);
     await cache.file('c2', uri: uri);
 
+    expect(await cache.totalBytes(), bytes.length * 2);
+
+    // 下载中断留下的临时文件不算占用（清除时会被一并删掉）。
+    final leftover = File('${dir.path}/c1.img.tmp');
+    await leftover.writeAsBytes(bytes);
     expect(await cache.totalBytes(), bytes.length * 2);
   });
 
@@ -107,6 +112,19 @@ void main() {
     expect(requests, hasLength(3), reason: '清除后同一封面应重新下载');
   });
 
+  test('cacheKey 与落盘文件名同源（界面用它判断要不要重问缓存）', () async {
+    final (:cache, :requests) = counting();
+
+    final file = await cache.file('c1', size: 300, uri: uri);
+
+    expect(file!.path, endsWith('${cache.cacheKey('c1', size: 300)}.img'));
+    expect(
+      cache.cacheKey('c1', size: 300),
+      isNot(cache.cacheKey('c1')),
+      reason: '尺寸不同是两份缓存',
+    );
+  });
+
   test('下载失败返回 null，不抛异常（界面据此降级直连）', () async {
     final cache = CoverCache(
       directory: dir,
@@ -117,10 +135,7 @@ void main() {
   });
 
   test('空响应视为失败，不留下零字节缓存', () async {
-    final cache = CoverCache(
-      directory: dir,
-      fetch: (_) async => Uint8List(0),
-    );
+    final cache = CoverCache(directory: dir, fetch: (_) async => Uint8List(0));
 
     expect(await cache.file('c1', uri: uri), isNull);
     expect(await cache.totalBytes(), 0);

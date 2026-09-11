@@ -1,22 +1,35 @@
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 
 import '../data/subsonic/models.dart';
 import 'playback_controller.dart';
 import 'playback_state_machine.dart';
 import 'player_engine.dart';
+import 'stream_uri.dart';
+
+/// 发布给系统的播放状态签名：只在真正变化时才推。
+///
+/// 用记录（record）取结构相等，字段增减由编译器盯着，不必人肉维护字符串。
+typedef _StateSignature = (
+  String? songId,
+  bool playing,
+  PlayerEngineStatus status,
+  RepeatMode repeat,
+  bool shuffle,
+  int index,
+);
 
 /// 系统媒体会话（ADR-0008）：`audio_service` 的 `AudioHandler` 是播放状态的
 /// 权威持有者。
 ///
 /// 职责：
-/// - 接收系统发来的播放命令（Android 媒体通知、TV 遥控器媒体键、锁屏、耳机
-///   线控），转发给同一个 [PlaybackController]；应用**不自行分发媒体键**，
+/// - **持有播放**：控制器由本 handler 创建并持有（[attach]），界面拿到的就是
+///   它持有的这一个，不存在第二份播放状态。
+/// - **系统命令入**：接收系统发来的播放命令（Android 媒体通知、TV 遥控器媒体键、
+///   锁屏、耳机线控），转发给同一个 [PlaybackController]；应用**不自行分发媒体键**，
 ///   交给系统经 `MediaSession` 路由（票据 07）。
-/// - 把控制器的队列、当前曲目与播放状态发布给系统，供媒体通知／Now Playing
-///   卡片／锁屏显示。
-///
-/// 界面读的是同一个控制器（由本 handler 持有），因此系统与界面不会各记一份
-/// 状态。
+/// - **状态出**：把控制器的队列、当前曲目与播放状态发布给系统，供媒体通知／
+///   Now Playing 卡片／锁屏显示。
 ///
 /// 音频会话（音乐类别、打断、耳机拔出）在 `PlaybackAudioSession` 里，由
 /// `playerControllerProvider` 在**引擎构造之后**接线。
@@ -44,19 +57,24 @@ class HoomyAudioHandler extends BaseAudioHandler {
 
   /// 上一次发布的播放状态签名：只在状态真正变化时推给系统，不跟着每 ~200ms
   /// 的进度通知刷。系统按 `updateTime` 自行外推进度（`PlaybackState.position`）。
-  String? _lastSignature;
+  _StateSignature? _lastSignature;
 
-  /// 上一次发布的队列 id 串：队列不变就不重复推。
-  String? _lastQueueIds;
+  /// 上一次发布的队列 id：队列不变就不重复推。
+  List<String>? _lastQueueIds;
 
-  /// 接管一个播放控制器：命令转发 + 状态发布。
+  /// 接管播放：创建并持有控制器，把系统命令与状态发布接到它上面。
   ///
   /// 登录后由 `playerControllerProvider` 调用；退出再登录会换成新控制器，
   /// 这里的监听随之改挂。
-  void attach(
-    PlaybackController controller, {
+  PlaybackController attach({
+    required PlayerEngine engine,
+    required StreamUriResolver streamUriOf,
     required Uri Function(String coverArtId) coverArtUriOf,
   }) {
+    final controller = PlaybackController(
+      engine: engine,
+      streamUriOf: streamUriOf,
+    );
     _controller?.removeListener(_broadcast);
     _controller = controller;
     _coverArtUriOf = coverArtUriOf;
@@ -64,6 +82,20 @@ class HoomyAudioHandler extends BaseAudioHandler {
     _lastQueueIds = null;
     controller.addListener(_broadcast);
     _broadcast();
+    return controller;
+  }
+
+  /// 解挂 [controller]（退出登录）；不是当前那个则无操作。
+  void detach(PlaybackController controller) {
+    if (!identical(_controller, controller)) return;
+    controller.removeListener(_broadcast);
+    _controller = null;
+    _coverArtUriOf = null;
+    _lastSignature = null;
+    _lastQueueIds = null;
+    mediaItem.add(null);
+    queue.add(const []);
+    playbackState.add(PlaybackState());
   }
 
   // ---- 系统命令 → 控制器 ----
@@ -89,7 +121,9 @@ class HoomyAudioHandler extends BaseAudioHandler {
 
   @override
   Future<void> stop() async {
-    await _controller?.pause();
+    // 系统要求停止：连队列一起清掉，系统和界面都回到「没有播放会话」，
+    // 而不是系统显示 idle、界面还留着队列。
+    await _controller?.playQueue(const []);
     await super.stop();
   }
 
@@ -101,21 +135,21 @@ class HoomyAudioHandler extends BaseAudioHandler {
     final session = controller.session;
     final queueState = session.queue;
 
-    final queueIds = queueState.queue.map((song) => song.id).join(',');
-    if (queueIds != _lastQueueIds) {
+    final queueIds = [for (final song in queueState.queue) song.id];
+    if (!listEquals(queueIds, _lastQueueIds)) {
       _lastQueueIds = queueIds;
       // 队列变化才重推，供系统展示「接下来是什么」。
       queue.add([for (final song in queueState.queue) _toMediaItem(song)]);
     }
 
-    final signature = [
+    final signature = (
       session.currentSong?.id,
       session.playing,
-      session.engine.status.name,
-      queueState.repeatMode.name,
+      session.engine.status,
+      queueState.repeatMode,
       queueState.shuffle,
       queueState.currentIndex,
-    ].join('|');
+    );
     if (!force && signature == _lastSignature) return;
     _lastSignature = signature;
 
