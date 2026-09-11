@@ -7,6 +7,32 @@ import 'playback_state_machine.dart';
 import 'player_engine.dart';
 import 'stream_uri.dart';
 
+/// 界面用来判断「播放状态是否换了个人」的标识。
+///
+/// 队列、当前曲目、播放状态这些**离散**状态一变，它就变；而进度（每 ~200ms）
+/// 不影响它。迷你播放条与错误提示条据此只订阅关心的部分，不被进度拖着重建。
+class PlaybackSessionIdentity {
+  const PlaybackSessionIdentity({required this.songId, required this.playing});
+
+  /// 当前曲目 id；没有当前曲目时为 null。
+  final String? songId;
+
+  /// 是否正在播放。
+  final bool playing;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PlaybackSessionIdentity &&
+      other.songId == songId &&
+      other.playing == playing;
+
+  @override
+  int get hashCode => Object.hash(songId, playing);
+
+  @override
+  String toString() => 'PlaybackSessionIdentity($songId, playing: $playing)';
+}
+
 /// 界面用的播放状态快照：把状态机的队列状态与引擎的播放状态、进度合到一处。
 ///
 /// 界面只读这一个对象，不必分别订阅状态机与引擎的两条流。
@@ -28,6 +54,10 @@ class PlaybackSession {
 
   /// 是否正在播放。
   bool get playing => engine.playing;
+
+  /// 不含进度的状态标识：换歌或播放/暂停变化时与上一帧不等。
+  PlaybackSessionIdentity get identity =>
+      PlaybackSessionIdentity(songId: currentSong?.id, playing: playing);
 
   /// 当前曲目总时长：优先用引擎给的（真实解码时长），回退服务端 metadata。
   Duration? get duration => engine.duration ?? _metadataDuration;

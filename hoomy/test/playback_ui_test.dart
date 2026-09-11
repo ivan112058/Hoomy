@@ -8,8 +8,9 @@ import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/repositories/repository_providers.dart';
 import 'package:hoomy/data/repositories/song_repository.dart';
 import 'package:hoomy/data/subsonic/models.dart';
-import 'package:hoomy/features/player/playback_bar.dart';
+import 'package:hoomy/features/player/mini_player_bar.dart';
 import 'package:hoomy/features/player/playback_error_banner.dart';
+import 'package:hoomy/features/shell/home_shell.dart';
 import 'package:hoomy/features/songs/songs_page.dart';
 import 'package:hoomy/player/playback_controller.dart';
 import 'package:hoomy/player/player_engine.dart';
@@ -46,17 +47,17 @@ void main() {
     ),
   ];
 
-  /// 歌曲列表 + 底部播放条，与 [HomeShell] 的形态一致。
+  /// 歌曲列表 + 迷你播放条，与 [HomeShell] 的形态一致。
   Widget harness(List<Override> overrides) => ProviderScope(
     overrides: [subsonicClientProvider.overrideWithValue(null), ...overrides],
     child: MaterialApp(
       theme: hoomyLightTheme(),
       home: const Scaffold(
         body: SongsPage(),
-        // 与 HomeShell 一致：错误提示条在播放条之上，两者都在导航栏之上。
+        // 与 HomeShell 一致：错误提示条在迷你播放条之上，两者都在导航栏之上。
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [PlaybackErrorBanner(), PlaybackBar()],
+          children: [PlaybackErrorBanner(), MiniPlayerBar()],
         ),
       ),
     ),
@@ -82,13 +83,25 @@ void main() {
     return SongRepository(fakeClient(transport));
   }
 
+  /// 主壳（真实 [HomeShell]）+ 假传输的曲库，用于验证迷你条的挂载位置。
+  Widget shell(List<Override> overrides) => ProviderScope(
+    overrides: [
+      subsonicClientProvider.overrideWithValue(fakeClient(FakeTransport())),
+      songRepositoryProvider.overrideWithValue(fakeRepository()),
+      ...overrides,
+    ],
+    child: MaterialApp(theme: hoomyLightTheme(), home: const HomeShell()),
+  );
+
+  PlaybackController newController(FakePlayerEngine engine) {
+    final controller = PlaybackController(engine: engine, streamUriOf: resolveUri);
+    addTearDown(controller.dispose);
+    return controller;
+  }
+
   testWidgets('点歌曲列表中的一首即开始播放，界面显示正在播放的曲目', (tester) async {
     final engine = FakePlayerEngine();
-    final controller = PlaybackController(
-      engine: engine,
-      streamUriOf: resolveUri,
-    );
-    addTearDown(controller.dispose);
+    final controller = newController(engine);
 
     await tester.pumpWidget(
       harness([
@@ -98,8 +111,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 未点歌时播放条不占位。
-    expect(find.byType(Slider), findsNothing);
+    // 未点歌时迷你播放条不占位。
+    expect(find.byType(MiniPlayerBar), findsOneWidget);
+    expect(tester.getSize(find.byType(MiniPlayerBar)).height, 0);
 
     await tester.tap(find.text('以父之名'));
     await tester.pumpAndSettle();
@@ -108,12 +122,13 @@ void main() {
     expect(engine.lastLoadedId, 's2');
     expect(engine.lastLoadedUri?.queryParameters['format'], 'raw');
     expect(engine.playCount, 1);
-    // 界面反映当前曲目：标题出现在播放条上（列表里那一条 + 播放条 1 条）。
+    // 界面反映当前曲目：标题出现在迷你条上（列表里那一条 + 迷你条 1 条）。
     expect(find.text('以父之名'), findsNWidgets(2));
-    // 播放条带进度条，说明它确实占位了。
-    expect(find.byType(Slider), findsOneWidget);
+    // 迷你条占位了，且刻意不带进度条。
+    expect(tester.getSize(find.byType(MiniPlayerBar)).height, greaterThan(0));
+    expect(find.byType(Slider), findsNothing);
 
-    // 正在播的曲目在列表里用播放态红标出（列表在前，播放条在后），
+    // 正在播的曲目在列表里用播放态红标出（列表在前，迷你条在后），
     // 另一首保持主文字色。
     expect(
       tester.widget<Text>(find.text('以父之名').first).style?.color,
@@ -138,13 +153,9 @@ void main() {
     expect(engine.lastLoadedId, 's2');
   });
 
-  testWidgets('播放条可暂停与继续', (tester) async {
+  testWidgets('迷你条可暂停与继续', (tester) async {
     final engine = FakePlayerEngine();
-    final controller = PlaybackController(
-      engine: engine,
-      streamUriOf: resolveUri,
-    );
-    addTearDown(controller.dispose);
+    final controller = newController(engine);
 
     await tester.pumpWidget(
       harness([
@@ -172,57 +183,9 @@ void main() {
     expect(engine.playCount, 2);
   });
 
-  testWidgets('进度随播放推进更新，拖进度条能跳转', (tester) async {
-    final engine = FakePlayerEngine();
-    final controller = PlaybackController(
-      engine: engine,
-      streamUriOf: resolveUri,
-    );
-    addTearDown(controller.dispose);
-
-    await tester.pumpWidget(
-      harness([
-        songRepositoryProvider.overrideWithValue(fakeRepository()),
-        playerControllerProvider.overrideWithValue(controller),
-      ]),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('晴天'));
-    await tester.pumpAndSettle();
-
-    // 引擎给出真实时长与当前位置，界面按 m:ss 显示。
-    engine.emitState(
-      const PlayerEngineState(
-        playing: true,
-        status: PlayerEngineStatus.ready,
-        duration: Duration(minutes: 4, seconds: 29),
-      ),
-    );
-    engine.emitPosition(const Duration(minutes: 1, seconds: 5));
-    await tester.pumpAndSettle();
-    expect(find.text('1:05'), findsOneWidget);
-    // 4:29 出现两次：列表里《晴天》的时长与播放条的时长。
-    expect(find.text('4:29'), findsNWidgets(2));
-
-    // 拖到中段松手 → 引擎收到跳转请求。
-    await tester.drag(find.byType(Slider), const Offset(120, 0));
-    await tester.pumpAndSettle();
-    expect(engine.seeks, hasLength(1));
-    expect(engine.seeks.single, greaterThan(const Duration(seconds: 30)));
-
-    // 进度继续推进，界面跟着走。
-    engine.emitPosition(const Duration(minutes: 2));
-    await tester.pumpAndSettle();
-    expect(find.text('2:00'), findsOneWidget);
-  });
-
   testWidgets('播放失败时界面给出可读提示，可关闭且不静默', (tester) async {
     final engine = FakePlayerEngine();
-    final controller = PlaybackController(
-      engine: engine,
-      streamUriOf: resolveUri,
-    );
-    addTearDown(controller.dispose);
+    final controller = newController(engine);
 
     await tester.pumpWidget(
       harness([
@@ -253,5 +216,57 @@ void main() {
     await tester.tap(find.byTooltip('下一首'));
     await tester.pumpAndSettle();
     expect(find.textContaining('播放失败'), findsNothing);
+  });
+
+  testWidgets('迷你条在所有 Tab 页可见', (tester) async {
+    final engine = FakePlayerEngine();
+    final controller = newController(engine);
+
+    await tester.pumpWidget(shell([
+      playerControllerProvider.overrideWithValue(controller),
+    ]));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('晴天'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(MiniPlayerBar)).height, greaterThan(0));
+
+    // 切到每个 Tab，迷你条都还在，内容仍是当前曲目。
+    for (final tab in ['播放列表', '艺术家', '专辑', '歌曲', '更多']) {
+      await tester.tap(find.text(tab));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: find.byType(MiniPlayerBar), matching: find.text('晴天')),
+        findsOneWidget,
+        reason: '$tab 页看不到迷你条',
+      );
+    }
+  });
+
+  testWidgets('迷你条在窄屏与大字号下不溢出（票据 06 遗留的 TV 底部溢出）', (tester) async {
+    final engine = FakePlayerEngine();
+    final controller = newController(engine);
+
+    addTearDown(tester.view.reset);
+    // 320×480 是仍需支持的最矮屏幕；电视上系统字号会放大到 1.3。
+    tester.view.physicalSize = const Size(320, 480);
+    tester.view.devicePixelRatio = 1.0;
+
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(1.3)),
+        child: shell([playerControllerProvider.overrideWithValue(controller)]),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('晴天'));
+    await tester.pumpAndSettle();
+
+    // 错误提示条出现时底部最高：迷你条 + 提示条 + 导航栏仍不得溢出。
+    engine.fail('音频解码失败');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('播放失败'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

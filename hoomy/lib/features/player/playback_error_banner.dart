@@ -18,6 +18,8 @@ class PlaybackErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PlaybackListenable(
+      // 错误只在出现/清除时变，不必跟着进度每 ~200ms 重建。
+      select: (controller) => controller.lastError,
       builder: (context, controller) =>
           _PlaybackErrorBannerBody(controller: controller),
     );
