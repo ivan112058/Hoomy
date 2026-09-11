@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hoomy 的服务器是局域网里的 Navidrome，用户填的就是 http://192.168.x.x 这类地址。
+  Android 9（API 28）起默认禁止明文 HTTP，Media3/ExoPlayer 的 HttpURLConnection
+  会因此拒绝打开串流地址（Dio 走自己的 HTTP 栈，不受这条策略约束，所以登录与
+  列表接口看起来是好的 —— 只有播放会失败）。
+
+  因此必须显式允许明文：`cleartextTrafficPermitted="true"`。
+  子域不做额外限制，因为服务器地址由用户输入、可以是任意内网地址；应用只与用户
+  自己填的一台服务器通信。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
