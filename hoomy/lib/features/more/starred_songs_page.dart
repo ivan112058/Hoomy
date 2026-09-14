@@ -10,7 +10,8 @@ import '../shared/song_tile.dart';
 
 /// 我喜欢的歌曲：服务端已 star 的歌曲（收藏状态跨设备同步）。
 ///
-/// 取消收藏由 [SongTile] 做本地乐观更新；离开本页后重新进入会重新拉取服务端状态。
+/// 取消收藏由 [SongTile] 里的收藏控件做乐观更新与失败回滚（票据 12）；
+/// 本页不缓存状态，离开后重新进入会重新拉取服务端状态。
 /// 点歌同样出声，队列是这份收藏列表，当前曲目标播放态红（票据 06）。
 class StarredSongsPage extends ConsumerWidget {
   const StarredSongsPage({super.key});

@@ -234,6 +234,9 @@ class SubsonicClient {
   }
 
   /// 收藏/取消收藏（songId / albumId / artistId 三选一）。
+  ///
+  /// 歌曲的 id 参数名是 **`id`**（不是 `songId`）—— Subsonic 规范的 `star`
+  /// 用 `id` 表示文件/歌曲，`albumId`/`artistId` 表示专辑/歌手。
   Future<void> setStarred({
     String? songId,
     String? albumId,
@@ -241,7 +244,7 @@ class SubsonicClient {
     required bool starred,
   }) =>
       _get(starred ? 'star.view' : 'unstar.view', params: {
-        'songId': ?songId,
+        'id': ?songId,
         'albumId': ?albumId,
         'artistId': ?artistId,
       });

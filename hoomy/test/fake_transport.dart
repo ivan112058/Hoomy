@@ -29,6 +29,10 @@ class FakeTransport implements HttpClientAdapter {
   /// 需要模拟网络层异常时使用；优先于 [responder]。
   DioException Function(RequestOptions options)? thrower;
 
+  /// 非 null 时所有响应先等它完成：在测试里制造「请求在途」的窗口，
+  /// 用于观察乐观更新与同目标互斥（票据 12）。
+  Future<void>? gate;
+
   /// 注册一个 `status=ok` 的固定响应（[body] 是信封内容，无需写 status）。
   void ok(String endpoint, [Map<String, Object?> body = const {}]) {
     _okEnvelopes[endpoint] = {'status': 'ok', 'version': '1.16.1', ...body};
@@ -57,6 +61,9 @@ class FakeTransport implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
+
+    final gate = this.gate;
+    if (gate != null) await gate;
 
     final thrown = thrower;
     if (thrown != null) throw thrown(options);

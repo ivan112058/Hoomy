@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/screen/screen_awake.dart';
 import '../../core/theme/hoomy_theme.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../../data/star/star_target.dart';
 import '../../data/subsonic/models.dart';
 import '../../player/playback_controller.dart';
 import '../shared/cover_art.dart';
 import '../shared/duration_text.dart';
 import '../shared/song_secondary_text.dart';
+import '../shared/star_button.dart';
 import 'lyrics_view.dart';
 import 'playback_controls.dart';
 import 'playback_listenable.dart';
@@ -263,6 +265,12 @@ class _PlaybackTopBar extends StatelessWidget {
             onClose: () => Navigator.of(context).maybePop(),
           ),
         ),
+        // 收藏当前曲目：没有当前曲目时（空态）不出现。
+        if (song != null)
+          StarButton(
+            target: songStar(song.id),
+            starred: song.isStarred,
+          ),
         if (showKeepAwake)
           IconButton(
             icon: Icon(keepAwake ? Icons.lightbulb : Icons.lightbulb_outline),

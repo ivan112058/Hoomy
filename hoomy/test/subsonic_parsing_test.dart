@@ -4,7 +4,10 @@ import 'package:hoomy/data/subsonic/subsonic_client.dart';
 
 import 'fake_transport.dart';
 
-/// S1 接缝：各只读端点的固定响应 → 领域模型解析，含字段缺失的容错。
+/// S1 接缝：各端点的固定响应 → 领域模型解析，含字段缺失的容错。
+///
+/// 写端点（`star`/`unstar`，票据 12）只在这里验证**请求组装**：固定响应来自
+/// 假传输，绝不触达真实服务器。
 void main() {
   group('ping', () {
     test('成功时正常返回', () async {
@@ -381,6 +384,62 @@ void main() {
         });
 
       expect(await fakeClient(transport).getStarredSongs(), isEmpty);
+    });
+  });
+
+  group('star / unstar 写参数', () {
+    test('歌曲的 id 参数名是 id，不是 songId，且走 star.view', () async {
+      final transport = FakeTransport()..ok('star.view');
+
+      await fakeClient(transport).setStarred(songId: 's1', starred: true);
+
+      expect(transport.lastEndpoint, 'star.view');
+      expect(transport.lastQuery['id'], 's1');
+      expect(
+        transport.lastQuery.containsKey('songId'),
+        isFalse,
+        reason: 'Subsonic 规范的歌曲参数名是 id；写成 songId 会被服务端忽略',
+      );
+      expect(transport.lastQuery.containsKey('albumId'), isFalse);
+      expect(transport.lastQuery.containsKey('artistId'), isFalse);
+    });
+
+    test('专辑用 albumId、歌手用 artistId，且不带 id', () async {
+      final albumTransport = FakeTransport()..ok('star.view');
+      await fakeClient(
+        albumTransport,
+      ).setStarred(albumId: 'al1', starred: true);
+      expect(albumTransport.lastQuery['albumId'], 'al1');
+      expect(albumTransport.lastQuery.containsKey('id'), isFalse);
+
+      final artistTransport = FakeTransport()..ok('star.view');
+      await fakeClient(
+        artistTransport,
+      ).setStarred(artistId: 'ar1', starred: true);
+      expect(artistTransport.lastQuery['artistId'], 'ar1');
+      expect(artistTransport.lastQuery.containsKey('id'), isFalse);
+    });
+
+    test('取消收藏走 unstar.view', () async {
+      final transport = FakeTransport()..ok('unstar.view');
+
+      await fakeClient(transport).setStarred(songId: 's1', starred: false);
+
+      expect(transport.lastEndpoint, 'unstar.view');
+      expect(transport.lastQuery['id'], 's1');
+    });
+
+    test('服务端错误映射为可读异常', () async {
+      final transport = FakeTransport()..fail('star.view', 70, '数据未找到');
+
+      await expectLater(
+        fakeClient(transport).setStarred(songId: 'gone', starred: true),
+        throwsA(
+          isA<SubsonicException>()
+              .having((e) => e.code, 'code', 70)
+              .having((e) => e.message, 'message', '数据未找到'),
+        ),
+      );
     });
   });
 

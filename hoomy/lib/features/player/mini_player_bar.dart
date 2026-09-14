@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/hoomy_theme.dart';
+import '../../data/star/star_target.dart';
 import '../../data/subsonic/models.dart';
 import '../../player/playback_controller.dart';
 import '../shared/cover_art.dart';
 import '../shared/hoomy_list_row.dart';
 import '../shared/song_secondary_text.dart';
+import '../shared/star_button.dart';
 import 'playback_listenable.dart';
 
 /// 迷你播放条：底部 Tab 之上常驻的一条当前曲目控制条。
@@ -96,12 +98,16 @@ class _MiniPlayerBarBody extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // 收藏按钮在票据 12 之前先呈现为不可用：收藏是那票据的事，
-                  // 不为了一个按钮把写路径（乐观更新与回滚）提前。
-                  const _BarIcon(
-                    icon: Icons.star_border,
-                    tooltip: '收藏（票据 12 提供）',
-                    onPressed: null,
+                  // 收藏当前曲目：乐观更新与失败回滚封在 StarButton 里（票据 12）。
+                  StarButton(
+                    target: songStar(song.id),
+                    starred: song.isStarred,
+                    iconSize: 22,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 44,
+                      height: 44,
+                    ),
                   ),
                   _BarIcon(
                     icon: Icons.skip_previous,

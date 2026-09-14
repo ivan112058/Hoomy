@@ -100,7 +100,7 @@ void main() {
     expect(find.text('0:00'), findsNothing);
   });
 
-  testWidgets('收藏按钮在票据 12 之前呈现为不可用', (tester) async {
+  testWidgets('收藏按钮反映当前曲目的收藏状态且已接线（票据 12）', (tester) async {
     final engine = FakePlayerEngine();
     final controller = newController(engine);
 
@@ -109,13 +109,23 @@ void main() {
     await controller.playQueue(const [sunshine]);
     await tester.pumpAndSettle();
 
+    // 未收藏：空心星，且可点（乐观更新与回滚封在 StarButton 里）。
+    expect(find.byIcon(Icons.star_border), findsOneWidget);
     final star = tester.widget<IconButton>(
       find.ancestor(
         of: find.byIcon(Icons.star_border),
         matching: find.byType(IconButton),
       ),
     );
-    expect(star.onPressed, isNull, reason: '收藏属票据 12，此处不得提前接线');
+    expect(star.onPressed, isNotNull, reason: '收藏写路径已由票据 12 接线');
+
+    // 已收藏：实心星。
+    await controller.playQueue(const [
+      SubsonicSong(id: 's9', title: '已收藏', starred: '2026-09-01T00:00:00Z'),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.star), findsOneWidget);
+    expect(find.byIcon(Icons.star_border), findsNothing);
   });
 
   testWidgets('上一首、下一首、播放／暂停与当前播放状态一致', (tester) async {
