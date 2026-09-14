@@ -93,6 +93,37 @@ void main() {
     expect(providerOf(tester), isA<FileImage>());
   });
 
+  testWidgets('缓存被清除后再次访问同一封面：重新下载并仍用本地文件显示', (tester) async {
+    var requests = 0;
+    final cache = CoverCache(
+      directory: dir,
+      fetch: (_) async {
+        requests++;
+        return png;
+      },
+    );
+
+    await pumpWithCache(tester, harness(cache));
+    expect(providerOf(tester), isA<FileImage>());
+    expect(requests, 1);
+
+    // 设置页手动清除缓存（票据 15）。缓存读写是真实 IO，放在真实时钟下。
+    await tester.runAsync(() async {
+      await cache.clear();
+      // 卸载封面再重新挂载，模拟「清除后界面再次访问同一封面」；同时清掉
+      // Flutter 的解码缓存，否则第一棵树留下的旧文件条目会干扰观察。
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      imageCache.clear();
+      imageCache.clearLiveImages();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+
+    await pumpWithCache(tester, harness(cache));
+
+    expect(providerOf(tester), isA<FileImage>(), reason: '封面照常显示');
+    expect(requests, 2, reason: '清除后应重新下载并重新落盘');
+  });
+
   testWidgets('缓存失败时降级为直连请求', (tester) async {
     final cache = CoverCache(
       directory: dir,

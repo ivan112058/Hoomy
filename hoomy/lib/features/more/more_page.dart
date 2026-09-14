@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/hoomy_theme.dart';
 import '../playlists/playlists_page.dart';
+import '../settings/settings_page.dart';
 import '../shared/async_view.dart';
 import '../shared/hoomy_list_row.dart';
 import 'genre_list_page.dart';
@@ -19,8 +20,9 @@ class MorePage extends StatelessWidget {
       leading: IconButton(
         icon: const Icon(Icons.settings_outlined),
         tooltip: '设置',
-        // TODO(设置页): 设置入口尚未实现，包含封面缓存清除、退出登录。
-        onPressed: null,
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
+        ),
       ),
       body: ListView(
         children: [

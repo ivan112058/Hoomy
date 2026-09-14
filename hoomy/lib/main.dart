@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/hoomy_theme.dart';
 import 'data/auth/auth_controller.dart';
 import 'data/cover/cover_cache_provider.dart';
+import 'data/settings/theme_mode_controller.dart';
 import 'features/auth/login_page.dart';
 import 'features/shell/home_shell.dart';
 import 'player/hoomy_audio_handler.dart';
@@ -42,18 +43,20 @@ Future<HoomyAudioHandler?> _startAudioService() async {
 }
 
 /// Hoomy：局域网 NAS 音乐播放器（Navidrome 客户端）。
-class HoomyApp extends StatelessWidget {
+class HoomyApp extends ConsumerWidget {
   const HoomyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 主题模式存在本机（票据 15）；读取期间按「跟随系统」显示，不阻塞首帧。
+    final themeMode = ref.watch(currentThemeModeProvider);
     return MaterialApp(
       title: 'Hoomy',
       debugShowCheckedModeBanner: false,
       theme: hoomyLightTheme(),
       darkTheme: hoomyDarkTheme(),
-      // 主题策略：浅色优先，深色跟随系统。
-      themeMode: ThemeMode.system,
+      // 主题策略：浅色优先，深色跟随系统；设置页可改为手动浅色／深色。
+      themeMode: themeMode,
       home: const _RootRouter(),
     );
   }

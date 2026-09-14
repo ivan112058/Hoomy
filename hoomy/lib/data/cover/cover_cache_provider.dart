@@ -14,6 +14,17 @@ import 'cover_cache.dart';
 /// widget 测试因此无需触碰文件系统。
 final coverCacheProvider = Provider<CoverCache?>((ref) => null);
 
+/// 封面缓存当前占用的字节数（供设置页显示，票据 15）。
+///
+/// 缓存能力缺失（未拿到可写目录）时为 null —— 与「占用为 0」是两回事：
+/// 前者没有磁盘缓存可清，后者有缓存但里面是空的。清除缓存后由设置页
+/// `invalidate` 本 provider 重新查询。
+final coverCacheBytesProvider = FutureProvider<int?>((ref) async {
+  final cache = ref.watch(coverCacheProvider);
+  if (cache == null) return null;
+  return cache.totalBytes();
+});
+
 /// 打开生产封面缓存；目录不可用时返回 null（界面降级为直连请求）。
 Future<CoverCache?> openCoverCache({Dio? dio}) async {
   try {
