@@ -137,6 +137,23 @@ void main() {
       expect(label.style?.fontSize, HoomyDimens.listSubtitleFontSize);
     });
 
+    testWidgets('软键盘弹出、窗口变矮时导航栏不溢出（可滚动）', (tester) async {
+      // 电视上搜索与登录都会唤出系统键盘，`adjustResize` 把窗口压到几百 dp；
+      // 导航栏 5 × 76dp 的固定列曾因此溢出 65px（真机发现）。
+      tester.view.physicalSize = const Size(960, 320);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(harness(const TvHomeShell()));
+      await tester.pumpAndSettle();
+
+      // 溢出会以 FlutterError 让用例失败；这里同时确认导航项都还在。
+      for (final label in ['播放列表', '艺术家', '专辑', '歌曲', '更多']) {
+        expect(find.text(label), findsOneWidget);
+      }
+    });
+
     testWidgets('系统返回键回到上一级；TV 上的返回入口是看得清的可聚焦按钮', (tester) async {
       await tester.pumpWidget(
         harness(

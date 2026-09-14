@@ -39,6 +39,9 @@ class _TvHomeShellState extends ConsumerState<TvHomeShell> {
     final palette = HoomyPalette.of(context);
     return Scaffold(
       body: Row(
+        // 铺满高度：导航栏要能自己滚动（软键盘弹出时窗口变矮），内容区靠
+        // Expanded 吃剩余宽度。
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _TvNavigationRail(
             selectedIndex: _index,
@@ -76,6 +79,10 @@ class _TvHomeShellState extends ConsumerState<TvHomeShell> {
 }
 
 /// 一级导航栏：纵向 5 项，每一项都可聚焦（D-pad 上下移动，确认键切换）。
+///
+/// 可滚动：软键盘弹出时（`adjustResize`）窗口高度只剩几百 dp，5 × 76dp 的
+/// 固定列会溢出；TV 上搜索/登录都要唤出键盘，这条路径真实存在。正常高度下
+/// 内容装得下，不会出现滚动条。
 class _TvNavigationRail extends StatelessWidget {
   const _TvNavigationRail({
     required this.selectedIndex,
@@ -88,20 +95,26 @@ class _TvNavigationRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = HoomyPalette.of(context);
-    return ColoredBox(
-      color: palette.titleBar,
-      child: Column(
-        children: [
-          for (var i = 0; i < kHoomyDestinations.length; i++)
-            _TvNavItem(
-              destination: kHoomyDestinations[i],
-              selected: i == selectedIndex,
-              // 启动即聚焦当前项：遥控器一上来就有焦点可移动，不必先按一下
-              // 方向键。之后切换 Tab 时 autofocus 不会再次生效（只认首次挂载）。
-              autofocus: i == selectedIndex,
-              onTap: () => onSelected(i),
-            ),
-        ],
+    return SizedBox(
+      width: kTvNavigationRailWidth,
+      child: ColoredBox(
+        color: palette.titleBar,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < kHoomyDestinations.length; i++)
+                _TvNavItem(
+                  destination: kHoomyDestinations[i],
+                  selected: i == selectedIndex,
+                  // 启动即聚焦当前项：遥控器一上来就有焦点可移动，不必先按一下
+                  // 方向键。之后切换 Tab 时 autofocus 不会再次生效（只认首次挂载）。
+                  autofocus: i == selectedIndex,
+                  onTap: () => onSelected(i),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
