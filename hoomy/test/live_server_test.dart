@@ -1,8 +1,10 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/data/repositories/album_repository.dart';
 import 'package:hoomy/data/repositories/artist_repository.dart';
 import 'package:hoomy/data/repositories/genre_repository.dart';
+import 'package:hoomy/data/repositories/paged_fetch.dart';
 import 'package:hoomy/data/repositories/playlist_repository.dart';
 import 'package:hoomy/data/repositories/song_repository.dart';
 import 'package:hoomy/data/subsonic/models.dart';
@@ -39,6 +41,7 @@ void main() {
           username: user,
           password: pass,
         ),
+        dio: Dio(),
       );
     });
 
@@ -56,7 +59,7 @@ void main() {
         reason: '分页出现重复歌曲',
       );
       // 实测 908 首，跨 2 页；断言至少需要一次翻页，覆盖 offset 路径。
-      expect(songs.length, greaterThan(SongRepository.pageSize));
+      expect(songs.length, greaterThan(kListPageSize));
     }, skip: configured ? false : '未配置服务器');
 
     test('专辑列表非空，专辑详情带曲目列表', () async {

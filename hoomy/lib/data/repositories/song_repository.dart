@@ -11,17 +11,13 @@ class SongRepository {
 
   final SubsonicClient _client;
 
-  /// 单页条数。Navidrome 对 `search3` 没有硬上限；500 是实测曲库下两次请求的取值。
-  static const pageSize = 500;
-
   /// 曲库里的全部歌曲，按服务端自然顺序，且不含重复项。
   ///
   /// 循环递增 `songOffset`，直到出现短页或空页为止；重叠页按 id 去重，
   /// 服务端忽略 offset 时在整页重复处终止（防死循环）。
   Future<List<SubsonicSong>> getAllSongs() => fetchAllPages(
-        pageSize: pageSize,
         fetchPage: (offset) => _client.search3Songs(
-          songCount: pageSize,
+          songCount: kListPageSize,
           songOffset: offset,
         ),
         idOf: (song) => song.id,

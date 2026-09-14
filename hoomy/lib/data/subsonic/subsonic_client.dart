@@ -56,9 +56,9 @@ class SubsonicException implements Exception {
 class SubsonicClient {
   SubsonicClient({
     required this.credentials,
-    Dio? dio,
+    required this.dio,
     this.clientName = 'hoomy',
-  }) : dio = dio ?? Dio();
+  });
 
   static const apiVersion = '1.16.1';
 

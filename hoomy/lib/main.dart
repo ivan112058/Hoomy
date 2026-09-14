@@ -5,6 +5,7 @@ import 'core/platform/form_factor.dart';
 import 'core/theme/hoomy_theme.dart';
 import 'data/auth/auth_controller.dart';
 import 'data/cover/cover_cache_provider.dart';
+import 'data/http/http_transport.dart';
 import 'data/settings/theme_mode_controller.dart';
 import 'features/auth/login_page.dart';
 import 'features/shell/home_shell.dart';
@@ -15,9 +16,13 @@ import 'player/player_providers.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 应用唯一的 HTTP 传输（ADR-0015 决策 5）：封面缓存在 runApp 之前就要用它，
+  // 所以在这里建好，再 override 给整棵树；登录与曲库都从 provider 取同一条。
+  final transport = createHttpTransport();
+
   // 封面磁盘缓存（票据 07）：启动时把目录与下载器准备好。拿不到目录就没有
   // 磁盘缓存，界面直连服务端，不影响使用。
-  final coverCache = await openCoverCache();
+  final coverCache = await openCoverCache(dio: transport);
 
   // 系统媒体会话（票据 07）：Android 的媒体通知／TV 遥控器媒体键依赖它。
   // 启动失败只是失去系统集成，不能拦下 App。
@@ -26,6 +31,7 @@ Future<void> main() async {
   runApp(
     ProviderScope(
       overrides: [
+        httpTransportProvider.overrideWithValue(transport),
         if (coverCache != null)
           coverCacheProvider.overrideWithValue(coverCache),
         if (audioHandler != null)

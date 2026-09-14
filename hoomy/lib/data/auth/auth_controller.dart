@@ -1,8 +1,8 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../credentials/credential_store.dart';
+import '../http/http_transport.dart';
 import '../subsonic/subsonic_client.dart';
 
 /// 全局登录态：null 表示未登录（显示登录页）。
@@ -25,8 +25,10 @@ class AuthController extends AsyncNotifier<SubsonicCredentials?> {
   Future<void> login(String serverUrl, String username, String password) async {
     final credentials = SubsonicCredentials.fromInput(
         serverUrl: serverUrl, username: username, password: password);
-    final client =
-        SubsonicClient(credentials: credentials, dio: ref.read(authDioProvider));
+    final client = SubsonicClient(
+      credentials: credentials,
+      dio: ref.read(httpTransportProvider),
+    );
     await client.ping();
     _credentialsPersisted = await _persist(credentials);
     state = AsyncData(credentials);
@@ -55,12 +57,14 @@ final authProvider =
 
 final credentialStoreProvider = Provider<CredentialStore>((ref) => CredentialStore());
 
-/// 登录校验用的 HTTP 传输。测试用假 adapter 覆盖它，登录链路因此不必真发请求。
-final authDioProvider = Provider<Dio>((ref) => Dio());
-
 /// 当前登录用户的 API 客户端；未登录时为 null。
+///
+/// 用应用唯一的 HTTP 传输（ADR-0015 决策 5）。
 final subsonicClientProvider = Provider<SubsonicClient?>((ref) {
   final credentials = ref.watch(authProvider).value;
   if (credentials == null) return null;
-  return SubsonicClient(credentials: credentials);
+  return SubsonicClient(
+    credentials: credentials,
+    dio: ref.watch(httpTransportProvider),
+  );
 });

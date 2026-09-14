@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/credentials/credential_store.dart';
+import 'package:hoomy/data/http/http_transport.dart';
 import 'package:hoomy/data/subsonic/subsonic_client.dart';
 import 'package:hoomy/main.dart';
 
@@ -66,12 +67,12 @@ class _FailingSecureStorage extends FlutterSecureStorage {
 /// 安全存储坏掉的本机环境。
 CredentialStore failingStore() => CredentialStore(const _FailingSecureStorage());
 
-Dio _authDio(FakeTransport transport) => Dio()..httpClientAdapter = transport;
+Dio _transportWith(FakeTransport transport) => Dio()..httpClientAdapter = transport;
 
 ProviderContainer _container(FakeTransport transport, {CredentialStore? store}) =>
     ProviderContainer(
       overrides: [
-        authDioProvider.overrideWithValue(_authDio(transport)),
+        httpTransportProvider.overrideWithValue(_transportWith(transport)),
         if (store != null) credentialStoreProvider.overrideWithValue(store),
       ],
     );
@@ -169,7 +170,7 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [authDioProvider.overrideWithValue(_authDio(transport))],
+          overrides: [httpTransportProvider.overrideWithValue(_transportWith(transport))],
           child: const HoomyApp(),
         ),
       );
@@ -193,7 +194,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            authDioProvider.overrideWithValue(_authDio(transport)),
+            httpTransportProvider.overrideWithValue(_transportWith(transport)),
             credentialStoreProvider.overrideWithValue(failingStore()),
             // 登录后的曲库取数与本用例无关，隔离掉网络。
             subsonicClientProvider.overrideWithValue(null),

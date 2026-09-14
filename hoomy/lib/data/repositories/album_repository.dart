@@ -8,16 +8,12 @@ class AlbumRepository {
 
   final SubsonicClient _client;
 
-  /// `getAlbumList2` 的 `size` 上限为 500（服务端硬编码），即单页条数。
-  static const pageSize = 500;
-
   /// 曲库里的全部专辑，按 `alphabeticalByName` 自然顺序，且不含重复项。
   ///
   /// 与歌曲列表同理：响应不带总数，只能靠翻页取全量。
   Future<List<SubsonicAlbum>> getAllAlbums() => fetchAllPages(
-        pageSize: pageSize,
         fetchPage: (offset) =>
-            _client.getAlbumList2(size: pageSize, offset: offset),
+            _client.getAlbumList2(size: kListPageSize, offset: offset),
         idOf: (album) => album.id,
       );
 

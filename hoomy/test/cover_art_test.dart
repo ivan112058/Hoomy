@@ -9,7 +9,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/cover/cover_cache.dart';
 import 'package:hoomy/data/cover/cover_cache_provider.dart';
-import 'package:hoomy/data/subsonic/subsonic_client.dart';
 import 'package:hoomy/features/shared/cover_art.dart';
 
 import 'fake_transport.dart';
@@ -43,7 +42,7 @@ void main() {
     overrides: [
       // 真实客户端只用来生成带认证的封面地址，不发请求。
       subsonicClientProvider.overrideWithValue(
-        SubsonicClient(credentials: testCredentials),
+        addressOnlyClient(),
       ),
       coverCacheProvider.overrideWithValue(cache),
     ],
@@ -147,7 +146,7 @@ void main() {
       ProviderScope(
         overrides: [
           subsonicClientProvider.overrideWithValue(
-            SubsonicClient(credentials: testCredentials),
+            addressOnlyClient(),
           ),
         ],
         child: const MaterialApp(

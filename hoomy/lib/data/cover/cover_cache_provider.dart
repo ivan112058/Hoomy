@@ -26,14 +26,17 @@ final coverCacheBytesProvider = FutureProvider<int?>((ref) async {
 });
 
 /// 打开生产封面缓存；目录不可用时返回 null（界面降级为直连请求）。
-Future<CoverCache?> openCoverCache({Dio? dio}) async {
+///
+/// [dio] 是应用唯一的 HTTP 传输（ADR-0015 决策 5）：封面下载与登录、曲库
+/// 共用同一条，因此传输策略只有一处。
+Future<CoverCache?> openCoverCache({required Dio dio}) async {
   try {
     final base = await getApplicationSupportDirectory();
     final directory = Directory('${base.path}/cover_art');
     await directory.create(recursive: true);
     return CoverCache(
       directory: directory,
-      fetch: _dioFetcher(dio ?? Dio()),
+      fetch: _dioFetcher(dio),
     );
   } catch (_) {
     // 拿不到可写目录：没有磁盘缓存也能用，不要把启动拦下。

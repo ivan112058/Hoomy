@@ -101,6 +101,13 @@ ResponseBody textResponse(String body, {int statusCode = 200}) =>
       },
     );
 
+/// 只用来拼地址、不发请求的客户端。
+///
+/// 断言「播放地址」「封面地址」或缓存身份时用它：真实客户端的地址拼接照旧，
+/// 但传输是空的，不必每处各自造一个 `Dio()`。
+SubsonicClient addressOnlyClient() =>
+    SubsonicClient(credentials: testCredentials, dio: Dio());
+
 /// 用假传输构造客户端，测试过程不会发起真实网络请求。
 SubsonicClient fakeClient(
   FakeTransport transport, {

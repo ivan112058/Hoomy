@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:hoomy/data/subsonic/models.dart';
-import 'package:hoomy/data/subsonic/subsonic_client.dart';
 import 'package:hoomy/player/playback_controller.dart';
 import 'package:hoomy/player/playback_state_machine.dart';
 import 'package:hoomy/player/queue_store.dart';
@@ -20,7 +19,7 @@ import 'fake_transport.dart';
 void main() {
   /// 与生产同源的解析器：真实 `SubsonicClient` 生成 `stream` 地址
   /// （含 `format=raw` 与 `u`/`t`/`s` 认证查询串），Dio 传输不参与。
-  final client = SubsonicClient(credentials: testCredentials);
+  final client = addressOnlyClient();
   Uri resolveUri(String id) => client.streamUri(id);
 
   List<SubsonicSong> songs(int count) => [
