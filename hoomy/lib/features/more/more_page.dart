@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/hoomy_theme.dart';
+import '../playlists/playlists_page.dart';
 import '../shared/async_view.dart';
 import '../shared/hoomy_list_row.dart';
 import 'genre_list_page.dart';
 import 'starred_songs_page.dart';
 
-/// 更多 Tab：风格、我喜欢的歌曲；左上角为设置入口。
+/// 更多 Tab：播放列表、风格、我喜欢的歌曲；左上角为设置入口。
 class MorePage extends StatelessWidget {
   const MorePage({super.key});
 
@@ -23,6 +24,13 @@ class MorePage extends StatelessWidget {
       ),
       body: ListView(
         children: [
+          _MoreTile(
+            icon: Icons.queue_music_outlined,
+            title: '播放列表',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const PlaylistsPage()),
+            ),
+          ),
           _MoreTile(
             icon: Icons.category_outlined,
             title: '风格',

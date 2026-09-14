@@ -1,7 +1,7 @@
 import '../subsonic/models.dart';
 import '../subsonic/subsonic_client.dart';
 
-/// 歌单取数：服务端歌单（MVP 只读）。
+/// 播放列表取数：服务端保存的播放列表（MVP 只读）。
 class PlaylistRepository {
   PlaylistRepository(this._client);
 
@@ -9,6 +9,6 @@ class PlaylistRepository {
 
   Future<List<SubsonicPlaylist>> getPlaylists() => _client.getPlaylists();
 
-  /// 歌单详情：含曲目列表。
+  /// 播放列表详情：含曲目列表。
   Future<SubsonicPlaylist> getPlaylist(String id) => _client.getPlaylist(id);
 }

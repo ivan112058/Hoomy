@@ -62,6 +62,10 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
 }
 
 /// 页面级脚手架：统一 AppBar。
+///
+/// 层级返回交给 AppBar 的默认行为：作为 Tab 根页时路由不可弹出，不显示返回键；
+/// 被 push 成详情页时自动出现返回键。显式传入 [leading]（如「更多」页的设置图标）
+/// 则用传入的那个。
 class PageScaffold extends StatelessWidget {
   const PageScaffold({super.key, required this.title, this.leading, this.actions, required this.body});
 
@@ -77,7 +81,6 @@ class PageScaffold extends StatelessWidget {
         title: Text(title),
         leading: leading,
         actions: actions,
-        automaticallyImplyLeading: leading != null,
       ),
       body: body,
     );

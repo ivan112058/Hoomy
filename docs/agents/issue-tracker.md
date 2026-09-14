@@ -73,7 +73,7 @@ cd hoomy && flutter test test/live_server_test.dart \
   --dart-define=HOOMY_TEST_PASS=<pass>
 ```
 
-**凭据不入库**，向用户索取。**只调用只读端点**：`ping`、`search3`、`getArtists`、`getArtist`、`getAlbumList2`、`getAlbum`、`getPlaylists`、`getPlaylist`、`getGenres`、`getStarred2`、`getLyricsBySongId`、`getLyrics`。**绝不调用** `star`、`unstar`、`scrobble` 等写端点。
+**凭据不入库**，向用户索取。**只调用只读端点**：`ping`、`search3`、`getArtists`、`getArtist`、`getAlbumList2`、`getAlbum`、`getPlaylists`、`getPlaylist`、`getGenres`、`getSongsByGenre`、`getStarred2`、`getLyricsBySongId`、`getLyrics`。**绝不调用** `star`、`unstar`、`scrobble` 等写端点，也绝不调用 `createPlaylist`、`updatePlaylist`、`deletePlaylist`。
 
 ## Wayfinding 操作
 

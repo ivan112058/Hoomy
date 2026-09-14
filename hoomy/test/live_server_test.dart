@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/data/repositories/album_repository.dart';
 import 'package:hoomy/data/repositories/artist_repository.dart';
+import 'package:hoomy/data/repositories/genre_repository.dart';
+import 'package:hoomy/data/repositories/playlist_repository.dart';
 import 'package:hoomy/data/repositories/song_repository.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/data/subsonic/subsonic_client.dart';
@@ -17,8 +19,10 @@ import 'package:hoomy/data/subsonic/subsonic_client.dart';
 /// ```
 ///
 /// 只调用只读端点：ping / search3 / getArtists / getArtist / getAlbum /
-/// getAlbumList2 / getLyricsBySongId / getLyrics。
-/// 绝不在本文件中调用 star / unstar / scrobble 等写端点。
+/// getAlbumList2 / getPlaylists / getPlaylist / getGenres / getSongsByGenre /
+/// getLyricsBySongId / getLyrics。
+/// 绝不在本文件中调用 star / unstar / scrobble 等写端点，也绝不调用播放列表写端点
+/// （createPlaylist / updatePlaylist / deletePlaylist）。
 void main() {
   const server = String.fromEnvironment('HOOMY_TEST_SERVER');
   const user = String.fromEnvironment('HOOMY_TEST_USER');
@@ -101,6 +105,36 @@ void main() {
       // start 字段解析为毫秒，且应为非降序（第一行通常是 0）。
       expect(found.lines.first.startMs, isNotNull);
       expect(found.lines.first.value, isNotEmpty);
+    }, skip: configured ? false : '未配置服务器');
+
+    test('播放列表列表非空，播放列表详情带曲目', () async {
+      final playlists = await PlaylistRepository(client).getPlaylists();
+      expect(playlists, isNotEmpty, reason: '实测服务器上有 2 个播放列表');
+
+      final withSongs = playlists.firstWhere(
+        (p) => (p.songCount ?? 0) > 0,
+        orElse: () => playlists.first,
+      );
+      final detail = await PlaylistRepository(client).getPlaylist(withSongs.id);
+      expect(detail.songs, isNotEmpty, reason: '播放列表详情没有取到曲目');
+    }, skip: configured ? false : '未配置服务器');
+
+    test('风格列表非空，该风格的曲目可整份取回', () async {
+      final genres = await GenreRepository(client).getGenres();
+      expect(genres, isNotEmpty, reason: '实测服务器上有 23 个风格');
+      expect(genres.first.songCount, isNotNull);
+
+      final withSongs = genres.firstWhere(
+        (g) => (g.songCount ?? 0) > 0,
+        orElse: () => genres.first,
+      );
+      final songs = await GenreRepository(client).getSongs(withSongs.name);
+      expect(songs, isNotEmpty, reason: '风格下没有取到歌曲');
+      expect(
+        songs.map((s) => s.id).toSet().length,
+        songs.length,
+        reason: '风格曲目出现重复',
+      );
     }, skip: configured ? false : '未配置服务器');
   });
 }

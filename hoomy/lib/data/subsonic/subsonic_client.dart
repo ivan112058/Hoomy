@@ -205,7 +205,7 @@ class SubsonicClient {
     return list?.whereType<Map>().map(_songFromJson).toList() ?? const [];
   }
 
-  // ---- 歌单 / 风格 / 收藏 ----
+  // ---- 播放列表 / 风格 / 收藏 ----
 
   Future<List<SubsonicPlaylist>> getPlaylists() async {
     final data = await _get('getPlaylists.view');
@@ -223,6 +223,25 @@ class SubsonicClient {
     final data = await _get('getGenres.view');
     final list = (data['genres'] as Map<String, dynamic>?)?['genre'] as List<dynamic>?;
     return list?.whereType<Map>().map(_genreFromJson).toList() ?? const [];
+  }
+
+  /// 指定风格下的歌曲。
+  ///
+  /// 与 `search3` 一样，响应不带总数与页码，翻页由调用方（repository）决定；
+  /// `count` 默认取规范里的缺省值，页大小不由协议层拍板。
+  Future<List<SubsonicSong>> getSongsByGenre({
+    required String genre,
+    int count = 10,
+    int offset = 0,
+  }) async {
+    final data = await _get('getSongsByGenre.view', params: {
+      'genre': genre,
+      'count': count,
+      'offset': offset,
+    });
+    final list = (data['songsByGenre'] as Map<String, dynamic>?)?['song']
+        as List<dynamic>?;
+    return list?.whereType<Map>().map(_songFromJson).toList() ?? const [];
   }
 
   /// “我喜欢的歌曲”：已 star 的歌曲。

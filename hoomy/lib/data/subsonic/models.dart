@@ -172,7 +172,7 @@ class SubsonicPlaylist {
   final int? durationSec;
   final String? owner;
 
-  /// 仅 getPlaylist（单歌单详情）返回，getPlaylists 列表为空。
+  /// 仅 getPlaylist（单个播放列表详情）返回，getPlaylists 列表为空。
   final List<SubsonicSong> songs;
 }
 

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme/hoomy_theme.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../shared/async_view.dart';
 import '../shared/hoomy_list_row.dart';
+import '../shared/song_count_text.dart';
+import 'genre_songs_page.dart';
 
-/// 风格列表：服务端解析出的曲库流派分组。
+/// 风格列表：服务端解析出的曲库流派分组，含各自的曲目数。
+///
+/// 点行进入该风格的曲目列表。
 class GenreListPage extends ConsumerWidget {
   const GenreListPage({super.key});
 
@@ -26,11 +29,11 @@ class GenreListPage extends ConsumerWidget {
             final genre = genres[i];
             return HoomyListRow(
               title: genre.name,
-              trailing: (state) => Text(
-                '${genre.songCount ?? 0} 首',
-                style: TextStyle(
-                  fontSize: HoomyDimens.listSubtitleFontSize,
-                  color: state.foreground,
+              trailing: (state) =>
+                  SongCountText(count: genre.songCount, state: state),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => GenreSongsPage(genre: genre.name),
                 ),
               ),
             );

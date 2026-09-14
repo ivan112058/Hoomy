@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/repository_providers.dart';
-import '../../data/subsonic/models.dart';
-import '../player/playback_listenable.dart';
 import '../shared/async_view.dart';
-import '../shared/play_song.dart';
-import '../shared/song_tile.dart';
+import '../shared/song_list_view.dart';
 
 /// 我喜欢的歌曲：服务端已 star 的歌曲（收藏状态跨设备同步）。
 ///
@@ -25,21 +22,8 @@ class StarredSongsPage extends ConsumerWidget {
       body: AsyncView(
         load: starRepository.getStarredSongs,
         emptyMessage: '还没有收藏的歌曲',
-        itemBuilder: (context, songs) => CurrentSongIdBuilder(
-          builder: (context, currentSongId) => ListView.separated(
-            itemCount: songs.length,
-            separatorBuilder: (_, _) => const Divider(),
-            itemBuilder: (context, i) => SongTile(
-              song: songs[i],
-              highlighted: songs[i].id == currentSongId,
-              onTap: () => _play(ref, songs, songs[i]),
-            ),
-          ),
-        ),
+        itemBuilder: (context, songs) => SongListView(songs: songs),
       ),
     );
   }
-
-  void _play(WidgetRef ref, List<SubsonicSong> songs, SubsonicSong song) =>
-      playSongFromList(ref, songs, song);
 }

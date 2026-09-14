@@ -290,7 +290,7 @@ void main() {
   });
 
   group('getPlaylists / getPlaylist', () {
-    test('getPlaylists 解析歌单列表（不含曲目）', () async {
+    test('getPlaylists 解析播放列表（不含曲目）', () async {
       final transport = FakeTransport()
         ..ok('getPlaylists.view', {
           'playlists': {
@@ -315,7 +315,7 @@ void main() {
       expect(playlists.single.songs, isEmpty);
     });
 
-    test('getPlaylist 解析歌单曲目（entry 节点）', () async {
+    test('getPlaylist 解析播放列表曲目（entry 节点）', () async {
       final transport = FakeTransport()
         ..ok('getPlaylist.view', {
           'playlist': {
@@ -384,6 +384,39 @@ void main() {
         });
 
       expect(await fakeClient(transport).getStarredSongs(), isEmpty);
+    });
+  });
+
+  group('getSongsByGenre', () {
+    test('解析 songsByGenre.song，并把 genre/count/offset 原样下发', () async {
+      final transport = FakeTransport()
+        ..ok('getSongsByGenre.view', {
+          'songsByGenre': {
+            'song': [
+              {'id': 's1', 'title': '晴天', 'artist': '周杰伦', 'genre': 'Rock'},
+              {'id': 's2', 'title': '以父之名'},
+            ],
+          },
+        });
+
+      final songs = await fakeClient(transport).getSongsByGenre(
+        genre: 'Rock',
+        count: 500,
+        offset: 1000,
+      );
+
+      expect(songs.map((s) => s.id), ['s1', 's2']);
+      expect(songs.first.artist, '周杰伦');
+      expect(transport.lastEndpoint, 'getSongsByGenre.view');
+      expect(transport.lastQuery['genre'], 'Rock');
+      expect(transport.lastQuery['count'], '500');
+      expect(transport.lastQuery['offset'], '1000');
+    });
+
+    test('没有该风格的歌曲时返回空列表', () async {
+      final transport = FakeTransport()..ok('getSongsByGenre.view');
+
+      expect(await fakeClient(transport).getSongsByGenre(genre: 'Rock'), isEmpty);
     });
   });
 
