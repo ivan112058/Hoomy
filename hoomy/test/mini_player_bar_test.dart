@@ -7,6 +7,7 @@ import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/features/player/mini_player_bar.dart';
 import 'package:hoomy/features/player/playback_listenable.dart';
 import 'package:hoomy/features/shared/cover_art.dart';
+import 'package:hoomy/features/shared/hoomy_icon_button.dart';
 import 'package:hoomy/player/playback_controller.dart';
 import 'package:hoomy/player/player_engine.dart';
 import 'package:hoomy/player/player_providers.dart';
@@ -111,10 +112,10 @@ void main() {
 
     // 未收藏：空心星，且可点（乐观更新与回滚封在 StarButton 里）。
     expect(find.byIcon(Icons.star_border), findsOneWidget);
-    final star = tester.widget<IconButton>(
+    final star = tester.widget<HoomyIconButton>(
       find.ancestor(
         of: find.byIcon(Icons.star_border),
-        matching: find.byType(IconButton),
+        matching: find.byType(HoomyIconButton),
       ),
     );
     expect(star.onPressed, isNotNull, reason: '收藏写路径已由票据 12 接线');

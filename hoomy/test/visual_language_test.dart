@@ -48,7 +48,7 @@ void main() {
           trailing: (state) => Icon(
             Icons.star,
             key: const Key('row-icon'),
-            color: state.pressed ? Colors.white : null,
+            color: state.active ? Colors.white : null,
           ),
         ),
       ));

@@ -7,6 +7,8 @@ import '../../data/subsonic/models.dart';
 import '../player/playback_listenable.dart';
 import '../shared/alphabet_sectioned_view.dart';
 import '../shared/async_view.dart';
+import '../shared/hoomy_focusable.dart';
+import '../shared/hoomy_icon_button.dart';
 import '../shared/hoomy_list_row.dart';
 import '../shared/play_song.dart';
 import '../shared/song_tile.dart';
@@ -103,6 +105,9 @@ class _SongsBodyState extends ConsumerState<_SongsBody> {
 }
 
 /// 搜索框：输入即过滤本地数据，有词时给出清空入口。
+///
+/// TV 上必须能从搜索框**走出去**（[HoomyTextFieldEscape]）：焦点进到输入框后
+/// 上下键默认被文本框吞掉，够不到下面的曲目列表。
 class _SearchField extends StatelessWidget {
   const _SearchField({required this.controller, required this.onChanged});
 
@@ -111,25 +116,30 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: '搜索歌曲',
-          isDense: true,
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: controller.text.isEmpty
-              ? null
-              : IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    controller.clear();
-                    onChanged('');
-                  },
-                ),
+    return HoomyTextFieldEscape(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: TextField(
+          controller: controller,
+          onChanged: onChanged,
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            hintText: '搜索歌曲',
+            isDense: true,
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: controller.text.isEmpty
+                ? null
+                : HoomyIconButton(
+                    icon: Icons.close,
+                    tooltip: '清空搜索',
+                    size: 40,
+                    iconSize: 20,
+                    onPressed: () {
+                      controller.clear();
+                      onChanged('');
+                    },
+                  ),
+          ),
         ),
       ),
     );

@@ -5,6 +5,7 @@ import '../../core/theme/hoomy_theme.dart';
 import '../../data/star/star_store.dart';
 import '../../data/star/star_target.dart';
 import 'error_retry_view.dart';
+import 'hoomy_icon_button.dart';
 import 'hoomy_list_row.dart';
 
 /// 收藏星标：乐观更新 + 失败回滚 + 同目标互斥的**唯一**界面落点（票据 12）。
@@ -15,26 +16,24 @@ import 'hoomy_list_row.dart';
 ///
 /// 颜色规则也收在这里，不让五个入口各抄一遍「已收藏→播放红」：
 /// 默认口径是 [HoomyPalette.playing]／[HoomyPalette.textPrimary]，
-/// 列表行用 [StarButton.inRow]，让星标跟随整行的按压反馈。
+/// 列表行用 [StarButton.inRow]，让星标跟随整行的高亮反馈。
 class StarButton extends ConsumerStatefulWidget {
   const StarButton({
     super.key,
     required this.target,
     required this.starred,
     this.iconSize,
-    this.padding,
-    this.constraints,
+    this.size,
   }) : rowState = null;
 
-  /// 列表行里的星标：未按下且已收藏时用播放红，按下时随整行变白。
+  /// 列表行里的星标：行未高亮且已收藏时用播放红，行高亮时随整行变白。
   const StarButton.inRow({
     super.key,
     required this.target,
     required this.starred,
     required HoomyRowState state,
     this.iconSize,
-    this.padding,
-    this.constraints,
+    this.size,
   }) : rowState = state;
 
   /// 收藏目标（歌曲/专辑/歌手 + 服务端 id）。
@@ -43,12 +42,13 @@ class StarButton extends ConsumerStatefulWidget {
   /// 服务端状态：是否已收藏。
   final bool starred;
 
-  /// 所在行的按压状态；非 null 时颜色改走行内口径。
+  /// 所在行的状态；非 null 时颜色改走行内口径。
   final HoomyRowState? rowState;
 
   final double? iconSize;
-  final EdgeInsetsGeometry? padding;
-  final BoxConstraints? constraints;
+
+  /// 点击区边长；null 用 [HoomyIconButton] 的默认值（48dp）。
+  final double? size;
 
   @override
   ConsumerState<StarButton> createState() => _StarButtonState();
@@ -95,11 +95,14 @@ class _StarButtonState extends ConsumerState<StarButton> {
   }
 
   /// 星标颜色：已收藏点亮播放红，否则用所在表面的前景色。
+  ///
+  /// 行内口径下，行处于高亮（按下 / 聚焦）时统一用行前景（白），不高亮时才
+  /// 区分「已收藏→播放红」；[HoomyIconButton] 自己聚焦时会把图标覆盖为白。
   Color _color(BuildContext context, bool starred) {
     final palette = HoomyPalette.of(context);
     final rowState = widget.rowState;
     if (rowState != null) {
-      return starred && !rowState.pressed
+      return starred && !rowState.active
           ? palette.playing
           : rowState.foreground;
     }
@@ -109,14 +112,13 @@ class _StarButtonState extends ConsumerState<StarButton> {
   @override
   Widget build(BuildContext context) {
     final starred = _effective;
-    return IconButton(
+    return HoomyIconButton(
+      icon: starred ? Icons.star : Icons.star_border,
       onPressed: _toggle,
-      color: _color(context, starred),
       tooltip: starred ? '取消收藏' : '收藏',
-      iconSize: widget.iconSize,
-      padding: widget.padding,
-      constraints: widget.constraints,
-      icon: Icon(starred ? Icons.star : Icons.star_border),
+      iconSize: widget.iconSize ?? 24,
+      size: widget.size ?? 48,
+      color: _color(context, starred),
     );
   }
 }

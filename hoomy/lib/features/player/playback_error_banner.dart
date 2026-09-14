@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/hoomy_theme.dart';
 import '../../player/playback_controller.dart';
+import '../shared/hoomy_icon_button.dart';
 import '../shared/hoomy_list_row.dart';
 import 'playback_listenable.dart';
 
@@ -58,11 +59,12 @@ class _PlaybackErrorBannerBody extends StatelessWidget {
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: controller.clearError,
+                HoomyIconButton(
+                  icon: Icons.close,
                   tooltip: '关闭',
                   color: palette.textSecondary,
-                  icon: const Icon(Icons.close, size: 20),
+                  iconSize: 20,
+                  onPressed: controller.clearError,
                 ),
               ],
             ),

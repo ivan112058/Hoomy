@@ -11,6 +11,8 @@ import '../../data/subsonic/models.dart';
 import '../../player/playback_controller.dart';
 import '../shared/cover_art.dart';
 import '../shared/duration_text.dart';
+import '../shared/hoomy_focusable.dart';
+import '../shared/hoomy_icon_button.dart';
 import '../shared/song_secondary_text.dart';
 import '../shared/star_button.dart';
 import 'lyrics_view.dart';
@@ -201,6 +203,9 @@ class _PlaybackPageState extends ConsumerState<PlaybackPage> {
 }
 
 /// 播放页的封面区：静止大封面，点一下切到歌词（ADR-0007）。
+///
+/// TV 上整块区域可聚焦，确认键同样切到歌词；聚焦时整块铺交互蓝并给封面加一圈
+/// 外框 —— 封面占了大半屏，只改文字颜色在 10-foot 距离上不够醒目。
 class _CoverArea extends StatelessWidget {
   const _CoverArea({super.key, required this.song, required this.onTap});
 
@@ -209,19 +214,29 @@ class _CoverArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      // 整块区域可点，不必精确点中封面图。
-      behavior: HitTestBehavior.opaque,
+    final palette = HoomyPalette.of(context);
+    return HoomyFocusable(
       onTap: onTap,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: AspectRatio(
-            aspectRatio: 1,
-            child: CoverArt(
-              coverArtId: song.coverArtId,
-              // 大图：让服务端按屏幕量级返回，不在客户端放大缩略图。
-              size: 1024,
+      builder: (context, highlight) => ColoredBox(
+        color: highlight.background(palette),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: highlight.foreground(palette, Colors.transparent),
+                  width: 3,
+                ),
+              ),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: CoverArt(
+                  coverArtId: song.coverArtId,
+                  // 大图：让服务端按屏幕量级返回，不在客户端放大缩略图。
+                  size: 1024,
+                ),
+              ),
             ),
           ),
         ),
@@ -272,15 +287,15 @@ class _PlaybackTopBar extends StatelessWidget {
             starred: song.isStarred,
           ),
         if (showKeepAwake)
-          IconButton(
-            icon: Icon(keepAwake ? Icons.lightbulb : Icons.lightbulb_outline),
+          HoomyIconButton(
+            icon: keepAwake ? Icons.lightbulb : Icons.lightbulb_outline,
             tooltip: keepAwake ? '关闭屏幕常亮' : '屏幕常亮',
             onPressed: onToggleKeepAwake,
           ),
         PlaybackListenable(
           select: (controller) => controller.session.queue.queue.length,
-          builder: (context, controller) => IconButton(
-            icon: const Icon(Icons.queue_music),
+          builder: (context, controller) => HoomyIconButton(
+            icon: Icons.queue_music,
             tooltip: '播放队列',
             onPressed: () => openQueueOverlay(context, controller),
           ),
@@ -446,8 +461,8 @@ class _PlaybackTitleBar extends StatelessWidget {
       height: HoomyDimens.titleBarHeight,
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.keyboard_arrow_down),
+          HoomyIconButton(
+            icon: Icons.keyboard_arrow_down,
             tooltip: '收起播放页',
             onPressed: onClose,
           ),

@@ -2,9 +2,9 @@
 // 这里只取本项目的播放循环模式。
 import 'package:flutter/material.dart' hide RepeatMode;
 
-import '../../core/theme/hoomy_theme.dart';
 import '../../player/playback_controller.dart';
 import '../../player/playback_state_machine.dart';
+import '../shared/hoomy_icon_button.dart';
 import 'playback_listenable.dart';
 
 /// 播放页的**五键中控**：循环、上一首、播放／暂停、下一首、随机。
@@ -51,7 +51,7 @@ class PlaybackControls extends StatelessWidget {
               icon: playing ? Icons.pause : Icons.play_arrow,
               tooltip: playing ? '暂停' : '播放',
               onPressed: controller.togglePlayPause,
-              size: 44,
+              iconSize: 44,
             ),
             _ControlIcon(
               icon: Icons.skip_next,
@@ -89,14 +89,17 @@ RepeatMode nextRepeatMode(RepeatMode mode) => switch (mode) {
   RepeatMode.one => RepeatMode.off,
 };
 
-/// 中控上的一个图标按钮：直角、56dp 点击区，激活态用播放红。
+/// 中控上的一个图标按钮：直角、56dp 点击区，激活态用播放红，聚焦时统一变白
+/// 铺交互蓝（ADR-0013 决策 2）。
+///
+/// 留作一处命名与几何常量：五个键共用同一份尺寸，散在调用处会各自漂移。
 class _ControlIcon extends StatelessWidget {
   const _ControlIcon({
     required this.icon,
     required this.tooltip,
     required this.onPressed,
     this.active = false,
-    this.size = 28,
+    this.iconSize = 28,
   });
 
   final IconData icon;
@@ -106,22 +109,17 @@ class _ControlIcon extends StatelessWidget {
   /// 是否处于激活态（循环非关、随机打开）：图标转播放红。
   final bool active;
 
-  final double size;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
-    final palette = HoomyPalette.of(context);
-    return SizedBox(
-      width: 56,
-      height: 56,
-      child: IconButton(
-        onPressed: onPressed,
-        tooltip: tooltip,
-        color: active ? palette.playing : palette.textPrimary,
-        iconSize: size,
-        padding: EdgeInsets.zero,
-        icon: Icon(icon),
-      ),
+    return HoomyIconButton(
+      icon: icon,
+      tooltip: tooltip,
+      onPressed: onPressed,
+      active: active,
+      iconSize: iconSize,
+      size: 56,
     );
   }
 }

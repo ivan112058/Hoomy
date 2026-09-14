@@ -4,6 +4,7 @@ import '../../core/theme/hoomy_theme.dart';
 import '../playlists/playlists_page.dart';
 import '../settings/settings_page.dart';
 import '../shared/async_view.dart';
+import '../shared/hoomy_icon_button.dart';
 import '../shared/hoomy_list_row.dart';
 import 'genre_list_page.dart';
 import 'starred_songs_page.dart';
@@ -17,8 +18,8 @@ class MorePage extends StatelessWidget {
     final theme = Theme.of(context);
     return PageScaffold(
       title: '更多',
-      leading: IconButton(
-        icon: const Icon(Icons.settings_outlined),
+      leading: HoomyIconButton(
+        icon: Icons.settings_outlined,
         tooltip: '设置',
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const SettingsPage()),

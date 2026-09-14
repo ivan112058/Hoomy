@@ -8,6 +8,7 @@ import '../../core/theme/hoomy_theme.dart';
 import '../../data/lyrics/song_lyrics.dart';
 import '../../player/playback_controller.dart';
 import '../shared/error_retry_view.dart';
+import '../shared/hoomy_focusable.dart';
 
 /// 歌词呈现：按内容档位渲染（`CONTEXT.md`「歌词档位」，ADR-0004）。
 ///
@@ -46,28 +47,40 @@ class LyricsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      // 整块歌词区域可点：点任意一行都切回封面，与「点封面切到歌词」对称。
-      behavior: HitTestBehavior.opaque,
+    final palette = HoomyPalette.of(context);
+    // 整块歌词区域可点/可聚焦：点任意一行、或在 TV 上按下确认键都切回封面，
+    // 与「点封面切到歌词」对称。聚焦只画一圈外框，不铺底色 —— 铺蓝会把
+    // 歌词文字淹没。
+    return HoomyFocusable(
       onTap: onTap,
-      // 强制铺满：单行歌词（如「纯音乐」）时 `SingleChildScrollView` 在宽松
-      // 约束下只占内容高度，不铺满的话可点区域会缩到那一行上，点空白没反应。
-      child: SizedBox.expand(
-        child: lyrics.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) =>
-              ErrorRetryView(message: describeError(error), onRetry: onRetry),
-          data: (data) => data == null || data.lines.isEmpty
-              ? const _NoLyrics()
-              : ListenableBuilder(
-                  listenable: controller,
-                  builder: (context, _) => _LyricsList(
-                    // 换歌即换一份列表状态：不残留上一首的滚动位置与高亮行。
-                    key: ValueKey(songId),
-                    lyrics: data,
-                    position: controller.session.position,
+      builder: (context, highlight) => DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: highlight.highlighted
+                ? palette.pressedBackground
+                : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        // 强制铺满：单行歌词（如「纯音乐」）时 `SingleChildScrollView` 在宽松
+        // 约束下只占内容高度，不铺满的话可点区域会缩到那一行上，点空白没反应。
+        child: SizedBox.expand(
+          child: lyrics.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) =>
+                ErrorRetryView(message: describeError(error), onRetry: onRetry),
+            data: (data) => data == null || data.lines.isEmpty
+                ? const _NoLyrics()
+                : ListenableBuilder(
+                    listenable: controller,
+                    builder: (context, _) => _LyricsList(
+                      // 换歌即换一份列表状态：不残留上一首的滚动位置与高亮行。
+                      key: ValueKey(songId),
+                      lyrics: data,
+                      position: controller.session.position,
+                    ),
                   ),
-                ),
+          ),
         ),
       ),
     );

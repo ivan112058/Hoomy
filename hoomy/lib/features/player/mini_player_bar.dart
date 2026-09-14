@@ -5,20 +5,23 @@ import '../../data/star/star_target.dart';
 import '../../data/subsonic/models.dart';
 import '../../player/playback_controller.dart';
 import '../shared/cover_art.dart';
+import '../shared/hoomy_focusable.dart';
+import '../shared/hoomy_icon_button.dart';
 import '../shared/hoomy_list_row.dart';
 import '../shared/song_secondary_text.dart';
 import '../shared/star_button.dart';
 import 'playback_listenable.dart';
 
-/// 迷你播放条：底部 Tab 之上常驻的一条当前曲目控制条。
+/// 迷你播放条：主导航之上常驻的一条当前曲目控制条。
 ///
 /// 显示当前曲目的封面、歌名、歌手，以及收藏、上一首、播放／暂停、下一首。
 /// **不显示进度**——这是 `CONTEXT.md`「迷你播放条」的刻意克制，不要加进度线；
 /// 需要进度与跳转的完整播放页属票据 09。
 ///
-/// 点条身展开完整播放页：本组件把展开交给 [onTap]，由主壳接线。
+/// 点条身展开完整播放页：本组件把展开交给 [onTap]，由主壳接线。TV 上条身与
+/// 每个按钮都进入焦点序列，聚焦反馈与按压反馈同一套视觉（ADR-0013）。
 ///
-/// 没有当前曲目时**不占位**（返回空盒子），因此未播放时底部只剩 Tab。
+/// 没有当前曲目时**不占位**（返回空盒子），因此未播放时底部只剩导航。
 ///
 /// 曲目变化与播放状态变化都经 [PlaybackListenable] 订阅控制器，
 /// 与当前播放状态一致地即时更新。
@@ -36,6 +39,9 @@ class MiniPlayerBar extends StatelessWidget {
 
   /// 封面边长。
   static const double coverSize = 40.0;
+
+  /// 条上图标按钮的点击区边长。
+  static const double _iconExtent = 44.0;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +65,7 @@ class _MiniPlayerBarBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = controller.session;
     final song = session.currentSong;
-    // 没有当前曲目就不占位：底部 Tab 之上不留空白。
+    // 没有当前曲目就不占位：导航之上不留空白。
     if (song == null) return const SizedBox.shrink();
     final palette = HoomyPalette.of(context);
 
@@ -79,49 +85,34 @@ class _MiniPlayerBarBody extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: InkWell(
-                      onTap: onTap,
-                      hoverColor: palette.surfaceRaised,
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: MiniPlayerBar.coverSize,
-                            height: MiniPlayerBar.coverSize,
-                            child: CoverArt(
-                              coverArtId: song.coverArtId,
-                              size: MiniPlayerBar.coverSize.round(),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(child: _TrackText(song: song)),
-                        ],
-                      ),
-                    ),
+                    child: _BarBody(song: song, onTap: onTap),
                   ),
                   // 收藏当前曲目：乐观更新与失败回滚封在 StarButton 里（票据 12）。
                   StarButton(
                     target: songStar(song.id),
                     starred: song.isStarred,
                     iconSize: 22,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints.tightFor(
-                      width: 44,
-                      height: 44,
-                    ),
+                    size: MiniPlayerBar._iconExtent,
                   ),
-                  _BarIcon(
+                  HoomyIconButton(
                     icon: Icons.skip_previous,
                     tooltip: '上一首',
+                    size: MiniPlayerBar._iconExtent,
+                    iconSize: 22,
                     onPressed: controller.previous,
                   ),
-                  _BarIcon(
+                  HoomyIconButton(
                     icon: session.playing ? Icons.pause : Icons.play_arrow,
                     tooltip: session.playing ? '暂停' : '播放',
+                    size: MiniPlayerBar._iconExtent,
+                    iconSize: 22,
                     onPressed: controller.togglePlayPause,
                   ),
-                  _BarIcon(
+                  HoomyIconButton(
                     icon: Icons.skip_next,
                     tooltip: '下一首',
+                    size: MiniPlayerBar._iconExtent,
+                    iconSize: 22,
                     onPressed: controller.next,
                   ),
                 ],
@@ -134,11 +125,52 @@ class _MiniPlayerBarBody extends StatelessWidget {
   }
 }
 
-/// 歌名 + 歌手：歌名一行，歌手一行，都按可用宽度截断。
-class _TrackText extends StatelessWidget {
-  const _TrackText({required this.song});
+/// 条身（封面 + 歌名歌手）：点它展开播放页。
+///
+/// 可聚焦：TV 上聚焦条身并按下确认键即展开播放页；聚焦时整块铺交互蓝、
+/// 文字转白，与列表行同一套反馈（ADR-0013 决策 2）。
+class _BarBody extends StatelessWidget {
+  const _BarBody({required this.song, this.onTap});
 
   final SubsonicSong song;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = HoomyPalette.of(context);
+    return HoomyFocusable(
+      onTap: onTap,
+      builder: (context, highlight) => ColoredBox(
+        color: highlight.background(palette),
+        child: Row(
+          children: [
+            SizedBox(
+              width: MiniPlayerBar.coverSize,
+              height: MiniPlayerBar.coverSize,
+              child: CoverArt(
+                coverArtId: song.coverArtId,
+                size: MiniPlayerBar.coverSize.round(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _TrackText(song: song, highlight: highlight),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 歌名 + 歌手：歌名一行，歌手一行，都按可用宽度截断。
+class _TrackText extends StatelessWidget {
+  const _TrackText({required this.song, required this.highlight});
+
+  final SubsonicSong song;
+
+  /// 条身的高亮状态：高亮时文字转白。
+  final HoomyHighlight highlight;
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +187,7 @@ class _TrackText extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: HoomyDimens.listTitleFontSize,
-            color: palette.playing,
+            color: highlight.foreground(palette, palette.playing),
           ),
         ),
         if (artist != null)
@@ -165,40 +197,10 @@ class _TrackText extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: HoomyDimens.listSubtitleFontSize,
-              color: palette.textSecondary,
+              color: highlight.foreground(palette, palette.textSecondary),
             ),
           ),
       ],
-    );
-  }
-}
-
-/// 迷你播放条上的图标按钮：直角、44dp 点击区，尺寸不与条高冲突。
-class _BarIcon extends StatelessWidget {
-  const _BarIcon({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = HoomyPalette.of(context);
-    return SizedBox(
-      width: 44,
-      height: 44,
-      child: IconButton(
-        onPressed: onPressed,
-        tooltip: tooltip,
-        color: palette.textPrimary,
-        iconSize: 22,
-        padding: EdgeInsets.zero,
-        icon: Icon(icon),
-      ),
     );
   }
 }

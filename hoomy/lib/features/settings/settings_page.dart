@@ -7,6 +7,7 @@ import '../../data/cover/cover_cache_provider.dart';
 import '../../data/settings/theme_mode_controller.dart';
 import '../shared/alphabet_sectioned_view.dart';
 import '../shared/async_view.dart';
+import '../shared/hoomy_button.dart';
 import '../shared/hoomy_list_row.dart';
 
 /// 设置页：主题切换、封面缓存占用与清除、退出登录。
@@ -57,8 +58,8 @@ class _ThemeModeRow extends ConsumerWidget {
       trailing: selected
           ? (state) => Icon(
               Icons.check,
-              // 按下时随整行变白，常态用播放红标出当前选择。
-              color: state.pressed
+              // 高亮（按下 / 聚焦）时随整行变白，常态用播放红标出当前选择。
+              color: state.active
                   ? state.foreground
                   : HoomyPalette.of(context).playing,
             )
@@ -109,14 +110,14 @@ class _CoverCacheRowState extends ConsumerState<_CoverCacheRow> {
     return HoomyListRow(
       title: '封面缓存',
       subtitle: _subtitle(bytes, hasCache: hasCache),
-      trailing: (state) => TextButton(
+      trailing: (state) => HoomyButton(
         onPressed: (!hasCache || _clearing) ? null : _clear,
-        // 按下时随整行变白（`CONTEXT.md`「按压反馈」）；未按下传 null，
-        // 沿用 TextButton 的默认色（强调色），禁用态也保留默认的灰。
-        style: TextButton.styleFrom(
-          foregroundColor: state.pressed ? state.foreground : null,
+        // 高亮（按下 / 聚焦）时随整行变白（`CONTEXT.md`「按压反馈」）；
+        // 未高亮沿用按钮自己的常态色（播放红），禁用态保留默认的灰。
+        child: Text(
+          _clearing ? '清除中…' : '清除',
+          style: state.active ? TextStyle(color: state.foreground) : null,
         ),
-        child: Text(_clearing ? '清除中…' : '清除'),
       ),
     );
   }
@@ -144,11 +145,11 @@ class _LogoutRow extends ConsumerWidget {
         content: const Text('将清除本机保存的服务器地址、用户名与密码，需要重新登录。'
             '服务端上的歌单、收藏等数据不受影响。'),
         actions: [
-          TextButton(
+          HoomyButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('取消'),
           ),
-          TextButton(
+          HoomyButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('退出'),
           ),

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../core/platform/form_factor.dart';
 import '../../core/theme/hoomy_theme.dart';
 import '../../data/subsonic/models.dart';
 import '../../player/playback_controller.dart';
+import '../shared/hoomy_icon_button.dart';
 import '../shared/hoomy_list_row.dart';
 import '../shared/song_secondary_text.dart';
 import 'playback_listenable.dart';
@@ -15,7 +17,9 @@ import 'playback_listenable.dart';
 /// 就是队列下标：
 ///
 /// - 点任意一首即跳到它（[PlaybackController.playAt]）；
-/// - 「即将播放」段可拖拽调序（[PlaybackController.reorderUpcoming]）；
+/// - 「即将播放」段可调序：手机形态拖拽手柄，TV 形态「聚焦行 + 左右键」
+///   （ADR-0013 决策 4），两条路径都落到
+///   [PlaybackController.reorderUpcoming]，重排规则只有一份；
 /// - 顶栏一键清空「即将播放」（[PlaybackController.clearUpcoming]）。
 ///
 /// 以全屏覆盖层形式压在整个应用之上（含播放页）：层级比页面路由更明确，
@@ -34,17 +38,18 @@ class QueueOverlayPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: palette.pageBackground,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down),
+        leading: HoomyIconButton(
+          icon: Icons.keyboard_arrow_down,
           tooltip: '收起队列',
           onPressed: () => Navigator.of(context).maybePop(),
         ),
+        automaticallyImplyLeading: false,
         title: const Text('播放队列'),
         actions: [
           PlaybackListenable(
             select: (controller) => controller.session.queue,
-            builder: (context, controller) => IconButton(
-              icon: const Icon(Icons.clear_all),
+            builder: (context, controller) => HoomyIconButton(
+              icon: Icons.clear_all,
               tooltip: '清空即将播放',
               onPressed: controller.hasUpcoming ? controller.clearUpcoming : null,
             ),
@@ -64,7 +69,7 @@ class QueueOverlayPage extends StatelessWidget {
 ///
 /// 分区取自 [PlaybackController.view]（**本次播放顺序**的三段切片），不是
 /// 「队列自然序 + 当前下标」：随机模式下两者不同，用后者会把真正下一首
-/// 标成已播放。段内元素是播放顺序里的位置，点选与拖拽都按它传回控制器。
+/// 标成已播放。段内元素是播放顺序里的位置，点选与重排都按它传回控制器。
 class _QueueBody extends StatelessWidget {
   const _QueueBody({required this.controller});
 
@@ -82,6 +87,7 @@ class _QueueBody extends StatelessWidget {
       );
     }
 
+    final isTv = HoomyFormFactorScope.isTv(context);
     final view = controller.view;
     final played = view.played;
     final upcoming = view.upcoming;
@@ -115,25 +121,56 @@ class _QueueBody extends StatelessWidget {
           ),
         ],
         if (upcoming.isNotEmpty) ...[
-          const _SectionHeader('即将播放'),
-          SliverReorderableList(
-            itemCount: upcoming.length,
-            onReorderItem: (oldIndex, newIndex) =>
-                _reorder(upcoming, oldIndex, newIndex),
-            itemBuilder: (context, i) {
-              final song = upcoming[i];
-              return _QueueRow(
-                key: ValueKey('queue-${song.id}'),
-                song: song,
-                onTap: () => controller.playAt(upcomingOffset + i),
-                // 拖拽只从行尾的手柄发起，不抢整行的点击。
-                dragHandle: ReorderableDragStartListener(
-                  index: i,
-                  child: const Icon(Icons.drag_handle),
-                ),
-              );
-            },
+          _SectionHeader(
+            '即将播放',
+            // 可发现性：左右键重排没有可见的抓手，靠这一句说明（ADR-0013 决策 4）。
+            hint: isTv ? '左右键调整顺序 · 确认键跳播' : null,
           ),
+          if (isTv)
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => _QueueRow(
+                  // 行 key 跟着曲目走，配合下面 `findChildIndexCallback`：重排后
+                  // 元素（连同焦点）跟着歌一起移动，焦点不会因为列表重建而掉到
+                  // 别处。
+                  key: ValueKey(_rowKey(upcoming[i])),
+                  song: upcoming[i],
+                  onTap: () => controller.playAt(upcomingOffset + i),
+                  onMovePrevious: () => _moveTo(upcoming, i, i - 1),
+                  onMoveNext: () => _moveTo(upcoming, i, i + 1),
+                ),
+                childCount: upcoming.length,
+                // 按 key 找新下标：曲目被上下移动后，sliver 复用同一个元素，
+                // 停在行上的焦点因此保持不动。
+                findChildIndexCallback: (key) {
+                  final id = (key as ValueKey<String>).value;
+                  final index = upcoming.indexWhere(
+                    (song) => _rowKey(song) == id,
+                  );
+                  return index < 0 ? null : index;
+                },
+              ),
+            )
+          else
+            SliverReorderableList(
+              itemCount: upcoming.length,
+              onReorderItem: (oldIndex, newIndex) =>
+                  _moveTo(upcoming, oldIndex, newIndex),
+              itemBuilder: (context, i) {
+                final song = upcoming[i];
+                return _QueueRow(
+                  key: ValueKey(_rowKey(song)),
+                  song: song,
+                  onTap: () => controller.playAt(upcomingOffset + i),
+                  // 拖拽只从行尾的手柄发起，不抢整行的点击。手柄只保留在手机
+                  // 形态：TV 上是「聚焦行 + 左右键」那条路径。
+                  dragHandle: ReorderableDragStartListener(
+                    index: i,
+                    child: const Icon(Icons.drag_handle),
+                  ),
+                );
+              },
+            ),
         ],
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
@@ -143,38 +180,62 @@ class _QueueBody extends StatelessWidget {
   /// 「即将播放」在播放顺序里的起始位置：已播放段 + 当前曲目。
   int get upcomingOffset => controller.view.played.length + 1;
 
-  /// 把「即将播放」段内部的移动换算成新的整段顺序。
+  /// 行 key：跟着曲目走，重排时元素与焦点一起移动。
+  String _rowKey(SubsonicSong song) => 'queue-${song.id}';
+
+  /// 把「即将播放」段内的曲目从 [from] 挪到 [to]，落成新的整段顺序。
   ///
-  /// [newIndex] 已是 `onReorderItem` 调整过的落点（移除旧项后的下标）。
-  void _reorder(List<SubsonicSong> upcoming, int oldIndex, int newIndex) {
+  /// 两条路径共用它：TV 的左右键（±1 格）与手机的拖拽
+  /// （`onReorderItem` 已把落点调成移除旧项后的下标）。越界不动（不是错误）：
+  /// 焦点停在行上、列表不重排。
+  void _moveTo(List<SubsonicSong> upcoming, int from, int to) {
+    if (to < 0 || to >= upcoming.length || from == to) return;
     final order = [...upcoming];
-    final moved = order.removeAt(oldIndex);
-    order.insert(newIndex, moved);
+    final moved = order.removeAt(from);
+    order.insert(to, moved);
     controller.reorderUpcoming(order);
   }
 }
 
-/// 分区标题：小字、次文字色，整宽无缩进。
+/// 分区标题：小字、次文字色，整宽无缩进；可选的行尾提示。
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
+  const _SectionHeader(this.title, {this.hint});
 
   final String title;
+
+  /// 行尾提示（TV 上的重排说明）；为空则不占位。
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
     final palette = HoomyPalette.of(context);
+    final hint = this.hint;
     return SliverToBoxAdapter(
       child: Container(
         height: 36,
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         color: palette.surfaceRaised,
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: HoomyDimens.listSubtitleFontSize,
-            color: palette.textSecondary,
-          ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: HoomyDimens.listSubtitleFontSize,
+                  color: palette.textSecondary,
+                ),
+              ),
+            ),
+            if (hint != null)
+              Text(
+                hint,
+                style: TextStyle(
+                  fontSize: HoomyDimens.listSubtitleFontSize,
+                  color: palette.textSecondary,
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -189,6 +250,8 @@ class _QueueRow extends StatelessWidget {
     this.current = false,
     this.onTap,
     this.dragHandle,
+    this.onMovePrevious,
+    this.onMoveNext,
   });
 
   final SubsonicSong song;
@@ -198,8 +261,14 @@ class _QueueRow extends StatelessWidget {
 
   final VoidCallback? onTap;
 
-  /// 行尾的拖拽手柄；不需要排序的分区传 null。
+  /// 行尾的拖拽手柄；不需要排序的分区或 TV 形态传 null。
   final Widget? dragHandle;
+
+  /// 左键 = 上移（TV 重排）。
+  final VoidCallback? onMovePrevious;
+
+  /// 右键 = 下移（TV 重排）。
+  final VoidCallback? onMoveNext;
 
   @override
   Widget build(BuildContext context) {
@@ -214,13 +283,15 @@ class _QueueRow extends StatelessWidget {
             subtitle: songSecondaryText(song),
             highlighted: current,
             onTap: onTap,
+            onMovePrevious: onMovePrevious,
+            onMoveNext: onMoveNext,
             // 只有正在播放的那一行显示标识，其余留出等宽占位让文字对齐；
-            // 颜色跟着整行的按压反馈走（按下变白），不绕开 [HoomyListRow]。
+            // 颜色跟着整行的高亮反馈走（高亮时变白），不绕开 [HoomyListRow]。
             leadingBuilder: (state) => Icon(
               Icons.play_arrow,
               size: 18,
               color: current
-                  ? (state.pressed ? state.foreground : palette.playing)
+                  ? (state.active ? state.foreground : palette.playing)
                   : const Color(0x00000000),
             ),
             trailing: dragHandle == null ? null : (_) => dragHandle!,

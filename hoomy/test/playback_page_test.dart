@@ -14,6 +14,7 @@ import 'package:hoomy/features/player/playback_controls.dart';
 import 'package:hoomy/features/player/playback_page.dart';
 import 'package:hoomy/features/player/queue_overlay.dart';
 import 'package:hoomy/features/shared/cover_art.dart';
+import 'package:hoomy/features/shared/hoomy_icon_button.dart';
 import 'package:hoomy/features/shared/hoomy_list_row.dart';
 import 'package:hoomy/features/shell/home_shell.dart';
 import 'package:hoomy/player/playback_controller.dart';
@@ -465,10 +466,10 @@ void main() {
       expect(find.text('晴天'), findsOneWidget);
       expect(find.text('以父之名'), findsOneWidget);
       // 清空后按钮不可再按。
-      final clear = tester.widget<IconButton>(
+      final clear = tester.widget<HoomyIconButton>(
         find.ancestor(
           of: find.byIcon(Icons.clear_all),
-          matching: find.byType(IconButton),
+          matching: find.byType(HoomyIconButton),
         ),
       );
       expect(clear.onPressed, isNull);

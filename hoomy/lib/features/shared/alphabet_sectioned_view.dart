@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/alphabet/alphabet.dart';
+import '../../core/platform/form_factor.dart';
 import '../../core/theme/hoomy_theme.dart';
 import 'alphabet_index_bar.dart';
 
@@ -107,7 +108,11 @@ class _AlphabetSectionedScrollViewState<T>
   Widget build(BuildContext context) {
     final sections = widget.sections;
     final total = sections.fold<int>(0, (sum, s) => sum + s.length);
-    final showIndexBar = total >= kAlphabetIndexBarMinItems;
+    // TV 上隐藏快捷栏（ADR-0013 决策 5）：它是触屏便利（按住拖动跳转），
+    // 27 个字母逐个做焦点既慢又打断滚动浏览；TV 上用搜索框定位。
+    final showIndexBar =
+        total >= kAlphabetIndexBarMinItems &&
+        !HoomyFormFactorScope.isTv(context);
 
     return Stack(
       children: [

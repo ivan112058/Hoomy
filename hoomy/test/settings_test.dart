@@ -16,6 +16,7 @@ import 'package:hoomy/data/settings/settings_store.dart';
 import 'package:hoomy/data/settings/theme_mode_controller.dart';
 import 'package:hoomy/features/more/more_page.dart';
 import 'package:hoomy/features/settings/settings_page.dart';
+import 'package:hoomy/features/shared/hoomy_button.dart';
 import 'package:hoomy/features/shared/hoomy_list_row.dart';
 import 'package:hoomy/main.dart';
 
@@ -246,8 +247,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('无磁盘缓存，封面直接请求服务端'), findsOneWidget);
-      final button = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, '清除'),
+      final button = tester.widget<HoomyButton>(
+        find.widgetWithText(HoomyButton, '清除'),
       );
       expect(button.onPressed, isNull);
     });

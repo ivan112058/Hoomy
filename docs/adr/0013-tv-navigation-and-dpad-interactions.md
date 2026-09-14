@@ -33,3 +33,13 @@ ADR-0003 把 TV 的两件事记为**待定**：一级导航保留底部 Tab 还�
 - TV 登录页的表单必须能拿到焦点（票据 07 验收时已暴露「TV 登录页输入框拿不到 D-pad 焦点」），否则 TV 上连登录都进不去。这是票据 16 的必办项。
 - 队列重排的既有拖拽手柄（`ReorderableDragStartListener`）仅保留在手机形态；TV 走决策 4 的左右键路径。两条路径最终都落到 `PlaybackController.reorderUpcoming`，重排规则不重复。
 - 若日后要发布 Android 手机版，本决策需重开：TV 外壳是为「Android 只做 TV」这一平台前提设计的。
+
+## 实现补充（2026-09-14，票据 16）
+
+- **TV 外壳在根部把 `MediaQuery.navigationMode` 置为 `directional`**：方向键因此只用于移动焦点（滑块仍保留左右键微调），`FocusableActionDetector` 一类的部件也按「方向导航」语义工作。手机形态保持系统默认。
+- **焦点原语是 `HoomyFocusable`（自建 `Focus`）而不是 `FocusableActionDetector`**：后者在方向导航模式下会把 `canRequestFocus` 强制为真，无法把纯展示行排除出焦点序列；且它用 `hasFocus`（含后代），行尾星标聚焦时会连带点亮整行。确认键经 `ActivateIntent`（遥控器中央键 = `LogicalKeyboardKey.select`）触发同一 `onTap`。
+- **文本输入框另配 `HoomyTextFieldEscape`**：`EditableText` 会吞掉上下键（`DoNothingAndStopPropagationTextIntent`），不接这一层则焦点进得去出不来，登录表单与搜索框都会把用户困住。
+- **形态判定用真实宿主平台**（`dart:io` 的 `Platform.isAndroid`），不用 `defaultTargetPlatform`：后者在 `flutter test` 里被强制成 Android，会让全部 widget 测试跑成 TV 外壳、手机形态失去覆盖。形态经 `HoomyFormFactorScope` 注入部件树，测试可显式指定；`debugDefaultTargetPlatformOverride` 优先于宿主判定，便于端到端验证根路由分叉。
+- **聚焦反馈的接入面比决策 2 写的更宽**：除 `HoomyListRow` 外，图标按钮与文字按钮（`HoomyIconButton` / `HoomyButton`）也改成自绘的可聚焦部件，覆盖迷你播放条、播放页中控与顶栏、队列覆盖层、登录页与设置页。理由是 Material 按钮的聚焦反馈只是默认的半透明叠加，10-foot 距离下看不清，而这些位置都在票据 16 的验收面上（登录页更是决策 2 点名的必办项）。涟漪本就已由全局 `NoSplash` 关掉，无障碍的 button 角色用 `Semantics` 显式补回。
+- **一处刻意例外：歌词区的聚焦反馈只画交互蓝外框，不铺蓝底。** 歌词是全屏文本面板，铺交互蓝会把整屏文字压成蓝底白字的一片，反而不可读；外框仍用同一枚交互蓝 token。其余可聚焦元素一律沿用「整块铺蓝 + 前景变白」。
+- **悬停不并入高亮**：决策 2 的口径是「按下**或聚焦**」（Android TV 没有指针，TV 语境里的悬停反馈由聚焦承担）。把鼠标悬停并进高亮会让手机／iPad 上指到一行就整行变蓝，那是手机形态里没有过的行为。代价是迷你播放条条身原有的那层浅色 `hoverColor` 随自绘部件取消；目标 iOS 设备是手机（无指针），实际影响为零，按压缩放反馈不变。

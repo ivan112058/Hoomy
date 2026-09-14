@@ -9,10 +9,20 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
 
+    <!-- Android 只做 TV（ADR-0013）：声明依赖 leanback 启动器，并声明不需要
+         触摸屏 —— 电视没有触屏，不声明的话部分分发渠道会把应用判为手机应用。 -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="true"/>
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false"/>
+
     <application
         android:label="hoomy"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:banner="@drawable/banner"
         android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
@@ -31,8 +41,13 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- 两个 category：LEANBACK_LAUNCHER 让应用出现在 Android TV 首页，
+                 LAUNCHER 保留给非 TV 宿主（模拟器／手机）上的调试启动。
+                 banner（320×180，drawable-xhdpi）由 application 的 android:banner
+                 指定，是 TV 首页卡片的图。 -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>

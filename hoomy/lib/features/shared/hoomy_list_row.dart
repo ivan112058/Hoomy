@@ -1,8 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../core/theme/hoomy_theme.dart';
+import 'hoomy_focusable.dart';
 
 /// 一行加上其下分隔线的占位高度。
 ///
@@ -43,16 +42,17 @@ class HoomyDividedRow extends StatelessWidget {
   }
 }
 
-/// 一行的按压状态。
+/// 一行的高亮状态。
 ///
-/// [foreground] 已由 [HoomyListRow] 按是否按下解析好：未按下是次文字色，
-/// 按下是白色。行尾部件直接用它上色就能自动跟随按压反馈。
+/// [foreground] 已由 [HoomyListRow] 按是否高亮解析好：未高亮是次文字色，
+/// 高亮（按下 / 聚焦 / 悬停）是白色。行尾部件直接用它上色就能自动跟随
+/// 反馈，不必各自判断输入形态。
 @immutable
 class HoomyRowState {
-  const HoomyRowState({required this.pressed, required this.foreground});
+  const HoomyRowState({required this.active, required this.foreground});
 
-  /// 当前是否处于按下态。
-  final bool pressed;
+  /// 当前是否处于高亮态：按下、聚焦或悬停任一成立（ADR-0013 决策 2）。
+  final bool active;
 
   /// 当前前景色。
   final Color foreground;
@@ -61,13 +61,14 @@ class HoomyRowState {
 /// 曲库列表的通用行：直角、60dp 高，标题 16sp、副标题 13sp。
 ///
 /// 按下时整行铺交互蓝、文字与图标变白 —— 参考项目用位图 selector，
-/// Flutter 无对应机制，这里做等效反馈（ADR-0003）。
+/// Flutter 无对应机制，这里做等效反馈（ADR-0003）。TV 上聚焦与悬停走同一套
+/// 视觉（ADR-0013）：焦点落在行上时也是整行蓝底、前景变白，不新增 TV 专属配色。
 ///
 /// [trailing] 拿到 [HoomyRowState]：不含颜色的图标继承行内 [IconTheme]
 /// 自动变白，需要显式着色的部件（收藏星标、时长文字）用
 /// [HoomyRowState.foreground]。[leadingBuilder] 同理 —— 行首需要按状态着色
 /// （例如播放标识按下时变白）时用它，而不是绕过这套反馈自己上色。
-class HoomyListRow extends StatefulWidget {
+class HoomyListRow extends StatelessWidget {
   const HoomyListRow({
     super.key,
     required this.title,
@@ -76,6 +77,8 @@ class HoomyListRow extends StatefulWidget {
     this.leadingBuilder,
     this.trailing,
     this.onTap,
+    this.onMovePrevious,
+    this.onMoveNext,
     this.highlighted = false,
   });
 
@@ -94,125 +97,96 @@ class HoomyListRow extends StatefulWidget {
   /// 行尾部件。
   final Widget Function(HoomyRowState state)? trailing;
 
-  /// 点击回调；为 null 时仍保留按压反馈。
+  /// 点击 / 确认键回调；为 null 时仍保留按压反馈，但不进焦点序列。
   final VoidCallback? onTap;
+
+  /// 左键回调：焦点停在行上时左键改判为上移（队列重排的 D-pad 路径）。
+  final VoidCallback? onMovePrevious;
+
+  /// 右键回调：与 [onMovePrevious] 对称，改判为下移。
+  final VoidCallback? onMoveNext;
 
   /// 是否是当前播放的曲目：标题用播放态红标出。
   ///
-  /// 按下时仍按按压反馈统一变白，红色只在未按下的常态下可见。
+  /// 高亮时仍按反馈统一变白，红色只在高亮的常态下可见。
   final bool highlighted;
-
-  @override
-  State<HoomyListRow> createState() => _HoomyListRowState();
-}
-
-class _HoomyListRowState extends State<HoomyListRow> {
-  /// 与 Android pressed-state 时长一致：同帧完成的点击也至少可见一瞬。
-  static const _minPressedDuration = Duration(milliseconds: 64);
-
-  bool _pressed = false;
-  Timer? _releaseTimer;
-
-  void _handlePressStart() {
-    _releaseTimer?.cancel();
-    _releaseTimer = null;
-    if (!_pressed) setState(() => _pressed = true);
-  }
-
-  void _handlePressEnd() {
-    if (!_pressed) return;
-    _releaseTimer?.cancel();
-    _releaseTimer = Timer(_minPressedDuration, () {
-      if (mounted) setState(() => _pressed = false);
-    });
-  }
-
-  @override
-  void dispose() {
-    _releaseTimer?.cancel();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final palette = HoomyPalette.of(context);
-    final titleColor = _pressed
-        ? palette.pressedForeground
-        : widget.highlighted
-        ? palette.playing
-        : palette.textPrimary;
-    final secondaryColor = _pressed
-        ? palette.pressedForeground
-        : palette.textSecondary;
-    final rowState = HoomyRowState(
-      pressed: _pressed,
-      foreground: secondaryColor,
-    );
+    return HoomyFocusable(
+      onTap: onTap,
+      onMovePrevious: onMovePrevious,
+      onMoveNext: onMoveNext,
+      builder: (context, highlight) {
+        final titleColor = highlight.foreground(
+          palette,
+          highlighted ? palette.playing : palette.textPrimary,
+        );
+        final secondaryColor = highlight.foreground(
+          palette,
+          palette.textSecondary,
+        );
+        final rowState = HoomyRowState(
+          active: highlight.highlighted,
+          foreground: secondaryColor,
+        );
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      // 用 tap 回调而不是 Listener：列表滚动时拖拽手势胜出会触发
-      // onTapCancel，行不会在整段滑动里一直保持蓝色。
-      onTapDown: (_) => _handlePressStart(),
-      onTapUp: (_) => _handlePressEnd(),
-      onTapCancel: _handlePressEnd,
-      onTap: widget.onTap,
-      child: ColoredBox(
-        color: _pressed ? palette.pressedBackground : Colors.transparent,
-        child: SizedBox(
-          height: HoomyDimens.listRowHeight,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: IconTheme.merge(
-              data: IconThemeData(color: secondaryColor),
-              child: Row(
-                children: [
-                  if (widget.leadingBuilder != null) ...[
-                    widget.leadingBuilder!(rowState),
-                    const SizedBox(width: 16),
-                  ] else if (widget.leading != null) ...[
-                    widget.leading!,
-                    const SizedBox(width: 16),
-                  ],
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: HoomyDimens.listTitleFontSize,
-                            color: titleColor,
-                          ),
-                        ),
-                        if (widget.subtitle != null &&
-                            widget.subtitle!.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              widget.subtitle!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: HoomyDimens.listSubtitleFontSize,
-                                color: secondaryColor,
-                              ),
+        return ColoredBox(
+          color: highlight.background(palette),
+          child: SizedBox(
+            height: HoomyDimens.listRowHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: IconTheme.merge(
+                data: IconThemeData(color: secondaryColor),
+                child: Row(
+                  children: [
+                    if (leadingBuilder != null) ...[
+                      leadingBuilder!(rowState),
+                      const SizedBox(width: 16),
+                    ] else if (leading != null) ...[
+                      leading!,
+                      const SizedBox(width: 16),
+                    ],
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: HoomyDimens.listTitleFontSize,
+                              color: titleColor,
                             ),
                           ),
-                      ],
+                          if (subtitle != null && subtitle!.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                subtitle!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: HoomyDimens.listSubtitleFontSize,
+                                  color: secondaryColor,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                  if (widget.trailing != null)
-                    widget.trailing!(rowState),
-                ],
+                    if (trailing != null) trailing!(rowState),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

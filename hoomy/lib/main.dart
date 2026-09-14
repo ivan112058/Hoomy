@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/platform/form_factor.dart';
 import 'core/theme/hoomy_theme.dart';
 import 'data/auth/auth_controller.dart';
 import 'data/cover/cover_cache_provider.dart';
 import 'data/settings/theme_mode_controller.dart';
 import 'features/auth/login_page.dart';
 import 'features/shell/home_shell.dart';
+import 'features/shell/tv_home_shell.dart';
 import 'player/hoomy_audio_handler.dart';
 import 'player/player_providers.dart';
 
@@ -50,6 +52,8 @@ class HoomyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 主题模式存在本机（票据 15）；读取期间按「跟随系统」显示，不阻塞首帧。
     final themeMode = ref.watch(currentThemeModeProvider);
+    // 平台即形态：Android 只做 TV（ADR-0013），不做机型探测。
+    final formFactor = platformFormFactor;
     return MaterialApp(
       title: 'Hoomy',
       debugShowCheckedModeBanner: false,
@@ -57,12 +61,29 @@ class HoomyApp extends ConsumerWidget {
       darkTheme: hoomyDarkTheme(),
       // 主题策略：浅色优先，深色跟随系统；设置页可改为手动浅色／深色。
       themeMode: themeMode,
+      builder: (context, child) {
+        final content = child ?? const SizedBox.shrink();
+        return HoomyFormFactorScope(
+          formFactor: formFactor,
+          // TV 上方向键**只**用于移动焦点：滑块等部件不能再把左右键当作
+          // 「微调数值」（这是 Flutter 给电视界面的导航模式）。不设这一项时
+          // 方向键是「传统」语义，文本输入框还会把上下键吞掉、焦点出不去。
+          child: formFactor == HoomyFormFactor.tv
+              ? MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    navigationMode: NavigationMode.directional,
+                  ),
+                  child: content,
+                )
+              : content,
+        );
+      },
       home: const _RootRouter(),
     );
   }
 }
 
-/// 根路由：按登录态决定显示登录页还是主壳。
+/// 根路由：按登录态与平台形态决定显示登录页、手机外壳还是 TV 外壳。
 class _RootRouter extends ConsumerWidget {
   const _RootRouter();
 
@@ -81,7 +102,11 @@ class _RootRouter extends ConsumerWidget {
             ),
           ),
         ),
-      _ => auth.value == null ? const LoginPage() : const HomeShell(),
+      _ => auth.value == null
+          ? const LoginPage()
+          : HoomyFormFactorScope.isTv(context)
+          ? const TvHomeShell()
+          : const HomeShell(),
     };
   }
 }
