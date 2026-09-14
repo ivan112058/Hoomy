@@ -129,7 +129,7 @@ void main() {
       expect(find.byType(BackButton), findsOneWidget);
     });
 
-    testWidgets('「播放全部」以整份播放列表为队列，从第一首开始播', (tester) async {
+    testWidgets('「全部播放」以整份播放列表为队列，从第一首开始播', (tester) async {
       final engine = FakePlayerEngine();
       final controller = newController(engine);
       final transport = playlistsTransport();
@@ -146,7 +146,7 @@ void main() {
       await tester.tap(find.text('通勤'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('播放全部'));
+      await tester.tap(find.text('全部播放'));
       await tester.pumpAndSettle();
 
       expect(engine.loadedIds, ['s1']);
@@ -203,7 +203,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('这个播放列表还没有曲目'), findsOneWidget);
-      expect(find.text('播放全部'), findsNothing, reason: '空播放列表没有可播的东西');
+      expect(find.text('全部播放'), findsNothing, reason: '空播放列表没有可播的东西');
     });
 
     testWidgets('曲目可收藏：走票据 12 的星标与 star 端点', (tester) async {

@@ -75,10 +75,12 @@ void main() {
         (a) => (a.albumCount ?? 0) > 0,
         orElse: () => artists.first,
       );
-      final detail = await ArtistRepository(client).getArtist(withAlbums.id);
-      expect(detail.albums, isNotEmpty, reason: '歌手详情没有专辑');
+      final detail = await ArtistRepository(
+        client,
+      ).getArtistDetail(withAlbums.id);
+      expect(detail.artist.albums, isNotEmpty, reason: '歌手详情没有专辑');
 
-      final songs = await ArtistRepository(client).getArtistSongs(withAlbums.id);
+      final songs = detail.songs;
       expect(songs, isNotEmpty, reason: '歌手没有取到任何歌曲');
       expect(
         songs.map((s) => s.id).toSet().length,

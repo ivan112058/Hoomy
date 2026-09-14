@@ -209,6 +209,15 @@ class PlaybackController extends ChangeNotifier {
     return _machine.playQueue(songs, startIndex: startIndex);
   }
 
+  /// 顺序播放整份 [songs]：关随机，从第一首开始（详情页「全部播放」）。
+  ///
+  /// 队列规则（关随机、从第一首起）由状态机持有；本类只是界面触达播放的入口。
+  Future<void> playAll(List<SubsonicSong> songs) => _machine.playAll(songs);
+
+  /// 随机播放整份 [songs]：开随机，并从其中随机一首开始（详情页「随机播放」）。
+  Future<void> playShuffled(List<SubsonicSong> songs) =>
+      _machine.playShuffled(songs);
+
   /// 从持久化存储恢复上次的队列（票据 11）。
   ///
   /// 重新打开 App 时调用：按持久化内容重建队列，加载上次的曲目并跳到上次的

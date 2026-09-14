@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/repository_providers.dart';
 import '../shared/async_view.dart';
-import '../shared/play_all_row.dart';
+import '../shared/play_rows.dart';
 import '../shared/song_list_view.dart';
 
 /// 风格详情：该风格下的曲目列表，可整单播放、可点单曲。

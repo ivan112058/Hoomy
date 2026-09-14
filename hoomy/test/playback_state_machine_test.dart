@@ -235,6 +235,37 @@ void main() {
     expect(machine.state.currentSong?.id, ids.last);
   });
 
+  test('playAll：关掉此前打开的随机，从第一首起顺序播放', () async {
+    final (:engine, :machine) = build(seed: 7);
+    machine.setShuffle(true);
+
+    await machine.playAll(songs(5));
+
+    expect(machine.state.shuffle, isFalse);
+    expect(machine.state.queue.map((s) => s.id), ['s0', 's1', 's2', 's3', 's4']);
+    expect(machine.state.currentSong?.id, 's0');
+    expect(engine.loadedIds, ['s0']);
+
+    // 关掉随机后按自然序推进，不再跳。
+    engine.complete();
+    await pumpEventQueue();
+    expect(machine.state.currentSong?.id, 's1');
+  });
+
+  test('playShuffled：打开随机，起点随一次机，一轮内每首恰好一次', () async {
+    final (:engine, :machine) = build(seed: 7);
+
+    await machine.playShuffled(songs(8));
+
+    expect(machine.state.shuffle, isTrue);
+    expect(machine.state.queue, hasLength(8), reason: '队列是整份上下文');
+    final first = machine.state.currentSong!.id;
+    final ids = await playThrough(machine, engine, 8);
+    expect(ids.first, first);
+    expect(ids, hasLength(8));
+    expect(ids.toSet(), idSet(8));
+  });
+
   test('随机 + 全部循环：一轮结束后开新一轮，且不与上一首立刻重复', () async {
     final (:engine, :machine) = build(seed: 11);
     machine.setShuffle(true);

@@ -65,7 +65,7 @@ void main() {
       // 分组键：B（Bohemian）、Q（晴天）、Y（以父之名）。
       expect(
         tester
-            .widgetList<AlphabetGroupHeader>(find.byType(AlphabetGroupHeader))
+            .widgetList<SectionHeader>(find.byType(SectionHeader))
             .map((h) => h.title)
             .toList(),
         ['B', 'Q', 'Y'],
@@ -161,7 +161,7 @@ void main() {
       await tester.enterText(find.byType(TextField), '不存在的歌');
       await tester.pump();
       expect(find.text('没有匹配的歌曲'), findsOneWidget);
-      expect(find.byType(AlphabetGroupHeader), findsNothing);
+      expect(find.byType(SectionHeader), findsNothing);
 
       await tester.tap(find.byIcon(Icons.close));
       await tester.pumpAndSettle();
@@ -170,7 +170,7 @@ void main() {
       expect(find.text('晴天'), findsOneWidget);
       expect(find.text('Bohemian Rhapsody'), findsOneWidget);
       expect(find.text('以父之名'), findsOneWidget);
-      expect(find.byType(AlphabetGroupHeader), findsNWidgets(3));
+      expect(find.byType(SectionHeader), findsNWidgets(3));
     });
   });
 
@@ -204,7 +204,7 @@ void main() {
       await tester.pump();
 
       final expectedOffset =
-          2 * (kAlphabetGroupHeaderExtent + 20 * kHoomyListRowExtent);
+          2 * (kSectionHeaderExtent + 20 * kHoomyListRowExtent);
       expect(controller.offset, closeTo(expectedOffset, 0.01));
     });
 
@@ -233,7 +233,7 @@ void main() {
       // 因此组头只随内容滚动：视口内只应有当前分组的头。
       expect(
         tester
-            .widgetList<AlphabetGroupHeader>(find.byType(AlphabetGroupHeader))
+            .widgetList<SectionHeader>(find.byType(SectionHeader))
             .map((header) => header.title),
         ['Z'],
       );
@@ -290,7 +290,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.widget<AlphabetGroupHeader>(find.byType(AlphabetGroupHeader).first).title,
+      tester.widget<SectionHeader>(find.byType(SectionHeader).first).title,
       'B',
     );
     expect(find.byType(AlphabetIndexBar), findsOneWidget);
@@ -323,7 +323,7 @@ void main() {
 
     // 跳转前最后一组还没构建，找不到它的组头。
     Finder targetHeader() => find.byWidgetPredicate(
-        (widget) => widget is AlphabetGroupHeader && widget.title == 'Y');
+        (widget) => widget is SectionHeader && widget.title == 'Y');
     expect(targetHeader(), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('alphabet-index-Y')));
@@ -361,7 +361,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.widget<AlphabetGroupHeader>(find.byType(AlphabetGroupHeader).first).title,
+      tester.widget<SectionHeader>(find.byType(SectionHeader).first).title,
       'A',
     );
     expect(find.byType(AlphabetIndexBar), findsOneWidget);

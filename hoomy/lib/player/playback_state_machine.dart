@@ -180,6 +180,26 @@ class PlaybackStateMachine {
     await _loadCurrent(autoplay: true);
   }
 
+  /// 顺序播放整份 [songs]：关随机，从第一首开始。
+  ///
+  /// 详情页「全部播放」的意图。**先关随机**：用户点「全部播放」要的是从第一首
+  /// 顺着听；若沿用此前打开的随机模式，它与旁边的「随机播放」就没有区别了。
+  Future<void> playAll(List<SubsonicSong> songs) {
+    setShuffle(false);
+    return playQueue(songs, startIndex: 0);
+  }
+
+  /// 随机播放整份 [songs]：开随机，并从其中**随机一首**开始。
+  ///
+  /// 详情页「随机播放」的意图。只打开随机而不挑起点的话，第一首永远先播，
+  /// 那不是点「随机播放」的人想要的，因此起点也随一次机 —— 起点的随机与
+  /// 洗牌共用同一个 [Random]，一轮随机的两个随机量出自同一处。
+  Future<void> playShuffled(List<SubsonicSong> songs) {
+    setShuffle(true);
+    if (songs.isEmpty) return playQueue(songs);
+    return playQueue(songs, startIndex: _random.nextInt(songs.length));
+  }
+
   /// 按持久化快照重建队列（票据 11），并**停在暂停态**。
   ///
   /// 与 [playQueue] 的区别只有两点：从 [position] 处恢复、不自动播放。

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../../data/subsonic/models.dart';
 import '../shared/async_view.dart';
-import '../shared/play_all_row.dart';
+import '../shared/play_rows.dart';
 import '../shared/song_list_view.dart';
 
 /// 播放列表详情：服务端播放列表的曲目列表，可整单播放、可点单曲。

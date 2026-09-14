@@ -10,10 +10,11 @@ import '../shared/alphabet_sectioned_view.dart';
 import '../shared/async_view.dart';
 import '../shared/hoomy_list_row.dart';
 import '../shared/star_button.dart';
+import 'artist_detail_page.dart';
 
 /// 艺术家 Tab：全库歌手按拼音首字母分组的列表。
 ///
-/// 行尾给专辑数与收藏星标；点行进入详情属票据 14，本页暂不接线。
+/// 行尾给专辑数与收藏星标；点行进入歌手详情（票据 14）。
 class ArtistsPage extends ConsumerWidget {
   const ArtistsPage({super.key});
 
@@ -32,6 +33,7 @@ class ArtistsPage extends ConsumerWidget {
           itemBuilder: (context, artist, _) => HoomyDividedRow(
             child: HoomyListRow(
               title: artist.name,
+              onTap: () => openArtistDetail(context, artist),
               trailing: (state) => Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [

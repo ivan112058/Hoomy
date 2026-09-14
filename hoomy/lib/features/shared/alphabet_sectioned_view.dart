@@ -5,16 +5,17 @@ import '../../core/theme/hoomy_theme.dart';
 import 'alphabet_index_bar.dart';
 
 /// 分组头高度。
-const kAlphabetGroupHeaderExtent = 28.0;
+const kSectionHeaderExtent = 28.0;
 
 /// 低于这个条目数就不显示快捷栏：一屏能看完时它只占位、不提供便利。
 const kAlphabetIndexBarMinItems = 20;
 
-/// 一个字母分组的组头。
+/// 分组头：不透明底色，列表内容滚到它下面（例如快速跳转后回滚）时不会透出。
 ///
-/// 不透明底色：列表内容滚到它下面（例如快速跳转后回滚）时不会透出。
-class AlphabetGroupHeader extends StatelessWidget {
-  const AlphabetGroupHeader({super.key, required this.title});
+/// 字母分组的组头与详情页的段落标题（歌手详情的「专辑」「全部歌曲」）
+/// 共用这一个实现。
+class SectionHeader extends StatelessWidget {
+  const SectionHeader({super.key, required this.title});
 
   final String title;
 
@@ -22,7 +23,7 @@ class AlphabetGroupHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = HoomyPalette.of(context);
     return Container(
-      height: kAlphabetGroupHeaderExtent,
+      height: kSectionHeaderExtent,
       width: double.infinity,
       color: palette.surfaceRaised,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -90,7 +91,7 @@ class _AlphabetSectionedScrollViewState<T>
     var offset = 0.0;
     for (final section in widget.sections) {
       offsets.add(offset);
-      offset += kAlphabetGroupHeaderExtent + widget.contentExtentOf(section);
+      offset += kSectionHeaderExtent + widget.contentExtentOf(section);
     }
     return offsets;
   }
@@ -115,7 +116,7 @@ class _AlphabetSectionedScrollViewState<T>
           slivers: [
             for (final section in sections) ...[
               SliverToBoxAdapter(
-                child: AlphabetGroupHeader(title: section.key),
+                child: SectionHeader(title: section.key),
               ),
               widget.sectionBuilder(context, section),
             ],
