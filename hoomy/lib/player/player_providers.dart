@@ -9,6 +9,7 @@ import 'just_audio_player_engine.dart';
 import 'playback_audio_session.dart';
 import 'playback_controller.dart';
 import 'player_engine.dart';
+import 'queue_store.dart';
 import 'stream_uri.dart';
 
 /// 系统媒体会话（`audio_service`，ADR-0008）。
@@ -34,6 +35,11 @@ final playerEngineProvider = Provider<PlayerEngine?>((ref) {
   return JustAudioPlayerEngine();
 });
 
+/// 播放队列的持久化存储（票据 11）。
+///
+/// 测试可 override 成注入 `SharedPreferences` 的实例，避免触达平台通道。
+final queueStoreProvider = Provider<QueueStore>((ref) => QueueStore());
+
 /// 播放接线：状态机 + 引擎，界面唯一的播放入口。
 ///
 /// 控制器创建后立刻接两处（票据 07）：
@@ -47,20 +53,32 @@ final playerEngineProvider = Provider<PlayerEngine?>((ref) {
 /// handler 创建并持有，界面从不触达 `just_audio` 内核；进度每 ~200ms 的高频更新
 /// 仍由控制器承担，不把系统状态流当进度源（audio_service 的 `PlaybackState`
 /// 只在状态变化时发布）。
+///
+/// 控制器同时负责队列持久化（票据 11）：创建后异步 [PlaybackController.restore]
+/// 上次的队列，恢复为暂停态，不打断启动。
 final playerControllerProvider = Provider<PlaybackController?>((ref) {
   final client = ref.watch(subsonicClientProvider);
   final engine = ref.watch(playerEngineProvider);
   final streamUriOf = ref.watch(streamUriResolverProvider);
   if (client == null || engine == null || streamUriOf == null) return null;
 
+  final queueStore = ref.watch(queueStoreProvider);
   final handler = ref.watch(audioHandlerProvider);
   final controller =
       handler?.attach(
         engine: engine,
         streamUriOf: streamUriOf,
         coverArtUriOf: client.coverArtUri,
+        queueStore: queueStore,
       ) ??
-      PlaybackController(engine: engine, streamUriOf: streamUriOf);
+      PlaybackController(
+        engine: engine,
+        streamUriOf: streamUriOf,
+        queueStore: queueStore,
+      );
+
+  // 读回上次的队列（若在）：恢复是异步的，界面先以空队列起步，读完即更新。
+  unawaited(controller.restore());
 
   // 音频会话接线是异步的（要取平台全局会话）；期间若控制器已被释放，
   // 就地把刚建立的监听丢掉，不留悬挂订阅。

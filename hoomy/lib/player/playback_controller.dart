@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../data/subsonic/models.dart';
 import 'playback_state_machine.dart';
 import 'player_engine.dart';
+import 'queue_store.dart';
 import 'stream_uri.dart';
 
 /// 界面用来判断「播放状态是否换了个人」的标识。
@@ -84,17 +85,37 @@ class PlaybackSession {
 ///
 /// 只想跟着「当前是哪首」更新的界面（播放列表高亮）用
 /// [currentSongIdStream]，避免被每 ~200ms 的进度通知拖着重绘。
+///
+/// 传入 [queueStore] 后本类同时负责队列持久化（票据 11）：队列／模式变化即存，
+/// 播放位置按 [positionSaveInterval] 节流存；[restore] 在启动时读回上次的队列
+/// 并停在暂停态。存储为 null 时（测试、无持久化环境）这些副作用全部不生效。
 class PlaybackController extends ChangeNotifier {
   PlaybackController({
     required PlayerEngine engine,
     required StreamUriResolver streamUriOf,
+    QueueStore? queueStore,
+    this.positionSaveInterval = const Duration(seconds: 5),
   }) : _engine = engine,
-       _machine = PlaybackStateMachine(engine, streamUriOf) {
+       _machine = PlaybackStateMachine(engine, streamUriOf),
+       // 具名参数不能私有，写不成 `this._queueStore`（lint 的误报）。
+       // ignore: prefer_initializing_formals
+       _queueStore = queueStore {
     _queueSub = _machine.stateStream.listen((state) {
+      // 换歌（或换到同一首的另一处）：下标与 id 任一变都算，重复曲目的队列
+      // 也能正确复位位置。
+      final songChanged =
+          state.currentIndex != _queueState.currentIndex ||
+          state.currentSong?.id != _queueState.currentSong?.id;
       _queueState = state;
       // 换歌即清掉上一首的失败提示：新曲目的加载有自己的结果。
       _lastError = null;
+      if (songChanged && !_restoring) {
+        // 位置属于曲目：换歌后从零算，避免把上一首的位置写进新曲目的快照。
+        _position = Duration.zero;
+        _lastSavedPosition = Duration.zero;
+      }
       _publish();
+      _persistOnQueueChange();
     });
     _engineStateSub = _engine.stateStream.listen((state) {
       _engineState = state;
@@ -103,6 +124,7 @@ class PlaybackController extends ChangeNotifier {
     _positionSub = _engine.positionStream.listen((position) {
       _position = position;
       _publish();
+      _persistPositionIfDue();
     });
     _errorSub = _machine.errorStream.listen((error) {
       _lastError = error;
@@ -119,6 +141,13 @@ class PlaybackController extends ChangeNotifier {
 
   final PlayerEngine _engine;
   final PlaybackStateMachine _machine;
+  final QueueStore? _queueStore;
+
+  /// 播放位置的落盘间隔：位置流每前进（或后退）这么多才写一次。
+  ///
+  /// 用播放位置而不是墙钟定时器做节流：位置流本身就是节拍器，且不引入
+  /// 需要清理的定时器，测试里推进位置即可复现。
+  final Duration positionSaveInterval;
 
   final _songIds = StreamController<String?>.broadcast();
 
@@ -132,6 +161,18 @@ class PlaybackController extends ChangeNotifier {
   PlayerEngineState _engineState = PlayerEngineState.idle;
   Duration _position = Duration.zero;
   PlayerEngineError? _lastError;
+
+  /// 上次落盘的位置；与 [_position] 的差达到 [positionSaveInterval] 才再写。
+  Duration _lastSavedPosition = Duration.zero;
+
+  /// 正在从存储恢复：期间队列状态变化不落盘（否则会用尚未 seek 的零位置
+  /// 覆盖刚读出来的位置），也不清零位置。
+  bool _restoring = false;
+
+  /// 本次进程是否已经建立过播放会话（用户点歌或完成恢复）。
+  bool _sessionStarted = false;
+
+  bool _disposed = false;
 
   /// 当前播放状态。
   PlaybackSession get session => PlaybackSession(
@@ -159,18 +200,60 @@ class PlaybackController extends ChangeNotifier {
   ///
   /// [songs] 是当前曲目所在的上下文（搜索结果／专辑曲目／歌手全部歌曲／
   /// 播放列表曲目），状态机据此连续播放。
-  Future<void> playQueue(List<SubsonicSong> songs, {int startIndex = 0}) =>
-      _machine.playQueue(songs, startIndex: startIndex);
+  Future<void> playQueue(List<SubsonicSong> songs, {int startIndex = 0}) {
+    _sessionStarted = true;
+    // 新会话从起点开始：状态流是异步的，先把位置清零，免得把上一首/上一轮
+    // 的位置写进新队列的快照。
+    _position = Duration.zero;
+    _lastSavedPosition = Duration.zero;
+    return _machine.playQueue(songs, startIndex: startIndex);
+  }
+
+  /// 从持久化存储恢复上次的队列（票据 11）。
+  ///
+  /// 重新打开 App 时调用：按持久化内容重建队列，加载上次的曲目并跳到上次的
+  /// 位置，**停在暂停态**。没有存储、没存过、数据损坏或队列为空时什么都不做，
+  /// 界面从空队列开始。
+  ///
+  /// 恢复要读盘再加载，期间用户可能已经点歌：加载完成后若会话已被用户接管
+  /// （[playQueue] 已跑过），这里不再写位置、也不重新标记会话 —— 恢复只是
+  /// 后台补齐，不能盖掉用户的操作。
+  Future<void> restore() async {
+    final store = _queueStore;
+    if (store == null) return;
+    final snapshot = await store.read();
+    if (_disposed || snapshot == null || snapshot.queue.isEmpty) return;
+    if (_sessionStarted) return;
+
+    _restoring = true;
+    try {
+      await _machine.restore(
+        state: snapshot.state,
+        position: snapshot.position,
+      );
+    } finally {
+      _restoring = false;
+    }
+
+    if (_disposed || _sessionStarted) return;
+    _sessionStarted = true;
+    _position = snapshot.position;
+    _lastSavedPosition = snapshot.position;
+    _publish();
+  }
 
   /// 开始或继续播放当前曲目。
   Future<void> play() => _machine.play();
 
   /// 暂停当前曲目。
-  Future<void> pause() => _machine.pause();
+  Future<void> pause() async {
+    await _machine.pause();
+    // 暂停是「长时间停留」的位置，立刻落盘，不等节流。
+    _persist();
+  }
 
   /// 播放/暂停切换。
-  Future<void> togglePlayPause() =>
-      session.playing ? _machine.pause() : _machine.play();
+  Future<void> togglePlayPause() => session.playing ? pause() : play();
 
   /// 下一首。
   Future<void> next() => _machine.next();
@@ -200,8 +283,11 @@ class PlaybackController extends ChangeNotifier {
   /// 跳转到 [position]。
   ///
   /// 直达引擎而不经状态机：进度是引擎的能力，状态机只管队列与当前曲目
-  /// （票据 05 决策 8）。
-  Future<void> seek(Duration position) => _engine.seek(position);
+  /// （票据 05 决策 8）。跳转是明确的落点变化，立刻落盘。
+  Future<void> seek(Duration position) async {
+    await _engine.seek(position);
+    _persist(position: position);
+  }
 
   /// 设置音量（0.0–1.0）。
   ///
@@ -217,6 +303,7 @@ class PlaybackController extends ChangeNotifier {
   /// 释放引擎与订阅。之后本对象不再可用。
   @override
   Future<void> dispose() async {
+    _disposed = true;
     await _queueSub?.cancel();
     await _engineStateSub?.cancel();
     await _positionSub?.cancel();
@@ -232,5 +319,44 @@ class PlaybackController extends ChangeNotifier {
     super.dispose();
   }
 
-  void _publish() => notifyListeners();
+  /// 队列／模式变化的落盘入口：这类变化低频，不做去重，直接整份覆盖。
+  ///
+  /// 恢复期间的状态变化是恢复自己发出来的（此刻位置还没 seek 到位），跳过不写。
+  void _persistOnQueueChange() {
+    if (_restoring || _disposed) return;
+    _persist();
+  }
+
+  /// 位置的落盘入口：按 [positionSaveInterval] 节流，前进与后退都算数。
+  void _persistPositionIfDue() {
+    if (_restoring || _disposed) return;
+    if ((_position - _lastSavedPosition).abs() < positionSaveInterval) return;
+    _persist();
+  }
+
+  /// 把当前会话写成一份快照；队列为空则清掉持久化数据。
+  ///
+  /// [position] 缺省取界面所见的进度；seek 后引擎尚未上报新位置时，显式传入
+  /// 跳转目标，避免把跳转前的位置写进快照。
+  ///
+  /// 写入是尽力而为：`QueueStore` 自己吞掉存储异常，这里也不必让 UI 等它。
+  void _persist({Duration? position}) {
+    final store = _queueStore;
+    if (store == null || _disposed) return;
+    final queue = _queueState.queue;
+    if (queue.isEmpty) {
+      unawaited(store.clear());
+      return;
+    }
+    final saved = position ?? _position;
+    _lastSavedPosition = saved;
+    unawaited(
+      store.write(QueueSnapshot.fromState(_queueState, position: saved)),
+    );
+  }
+
+  void _publish() {
+    if (_disposed) return;
+    notifyListeners();
+  }
 }

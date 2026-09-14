@@ -171,22 +171,51 @@ class PlaybackStateMachine {
   ///
   /// [startIndex] 越界时收敛到合法范围。空队列表示停止播放并清空当前曲目。
   Future<void> playQueue(List<SubsonicSong> songs, {int startIndex = 0}) async {
+    _installQueue(songs, startIndex);
+    _publish();
+    if (_queue.isEmpty) {
+      await _engine.pause();
+      return;
+    }
+    await _loadCurrent(autoplay: true);
+  }
+
+  /// 按持久化快照重建队列（票据 11），并**停在暂停态**。
+  ///
+  /// 与 [playQueue] 的区别只有两点：从 [position] 处恢复、不自动播放。
+  /// 队列内容、当前曲目、循环与随机模式按快照原样恢复；随机打开时播放顺序
+  /// 重新洗成「当前曲目 + 其余」的一轮（重启后无从知道上次随机的实际顺序，
+  /// 与中途打开随机同一套规则）。
+  ///
+  /// [PlaybackQueueState.currentIndex] 越界时收敛到合法范围（解析快照时已拒绝
+  /// 越界，这里的收敛是直接调用状态机时的兜底）；空队列退化为空状态，
+  /// 不加载任何曲目。
+  Future<void> restore({
+    required PlaybackQueueState state,
+    required Duration position,
+  }) async {
+    _repeat = state.repeatMode;
+    _shuffle = state.shuffle;
+    _installQueue(state.queue, state.currentIndex);
+    _publish();
+    if (_queue.isEmpty) return;
+    await _loadCurrent(autoplay: false, position: position);
+  }
+
+  /// 装上 [songs] 并把游标定位到 [start]。
+  ///
+  /// 随机关闭时播放顺序是自然序、游标落在 [start] 上；随机打开时 [start]
+  /// 被排到一轮之首、游标归零。空队列清空顺序与游标（-1）。
+  void _installQueue(List<SubsonicSong> songs, int start) {
     _queue = List.unmodifiable(songs);
     if (_queue.isEmpty) {
       _playOrder = const [];
       _playOrderCursor = -1;
-      _publish();
-      await _engine.pause();
       return;
     }
-
-    final start = startIndex.clamp(0, _queue.length - 1);
-    _playOrder = _orderedFrom(start);
-    // 随机关闭时顺序是自然序，当前曲目就落在它自己的下标上；
-    // 随机打开时 [start] 被排到一轮之首。
-    _playOrderCursor = _shuffle ? 0 : start;
-    _publish();
-    await _loadCurrent(autoplay: true);
+    final target = start.clamp(0, _queue.length - 1);
+    _playOrder = _shuffle ? _orderedFrom(target) : _naturalOrder();
+    _playOrderCursor = _shuffle ? 0 : target;
   }
 
   /// 开始或继续播放当前曲目。
@@ -409,10 +438,21 @@ class PlaybackStateMachine {
     await _loadCurrent(autoplay: true);
   }
 
-  Future<void> _loadCurrent({required bool autoplay}) async {
+  Future<void> _loadCurrent({
+    required bool autoplay,
+    Duration? position,
+  }) async {
     final index = _currentIndex;
     if (index < 0) return;
-    await _engine.load(_streamUriOf(_queue[index].id));
+    final songId = _queue[index].id;
+    await _engine.load(_streamUriOf(songId));
+    // 加载期间当前曲目可能已经被换掉（用户点歌，或恢复与用户操作竞态）：
+    // 对一首已经过期、甚至已经被别人加载的曲目 seek/play 会把它跳走。
+    final loadedIndex = _currentIndex;
+    if (loadedIndex < 0 || _queue[loadedIndex].id != songId) return;
+    if (position != null && position > Duration.zero) {
+      await _engine.seek(position);
+    }
     if (autoplay) await _engine.play();
   }
 

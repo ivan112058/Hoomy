@@ -1,8 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/data/subsonic/subsonic_client.dart';
 import 'package:hoomy/player/playback_controller.dart';
+import 'package:hoomy/player/playback_state_machine.dart';
+import 'package:hoomy/player/queue_store.dart';
 
 import 'package:hoomy/player/player_engine.dart';
 
@@ -286,6 +289,227 @@ void main() {
       await pumpEventQueue();
 
       expect(notifications, 2);
+
+      await controller.dispose();
+    });
+  });
+
+  group('队列持久化（票据 11）', () {
+    setUp(() {
+      // 每个用例从空存储开始；`QueueStore` 走内存 mock，不触达平台通道。
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    ({
+      FakePlayerEngine engine,
+      PlaybackController controller,
+      QueueStore store,
+    })
+    buildPersistent({Duration interval = const Duration(seconds: 5)}) {
+      final engine = FakePlayerEngine();
+      final store = QueueStore();
+      final controller = PlaybackController(
+        engine: engine,
+        streamUriOf: resolveUri,
+        queueStore: store,
+        positionSaveInterval: interval,
+      );
+      return (engine: engine, controller: controller, store: store);
+    }
+
+    test('队列变化即自动保存：内容、当前曲目、循环与随机', () async {
+      final (:engine, :controller, :store) = buildPersistent();
+
+      await controller.playQueue(songs(3), startIndex: 1);
+      await pumpEventQueue();
+
+      var saved = await store.read();
+      expect(saved, isNotNull);
+      expect(saved!.queue.map((s) => s.id), ['s0', 's1', 's2']);
+      expect(saved.currentIndex, 1);
+      expect(saved.repeatMode, RepeatMode.off);
+      expect(saved.shuffle, isFalse);
+
+      controller.setRepeatMode(RepeatMode.one);
+      controller.setShuffle(true);
+      await pumpEventQueue();
+
+      saved = await store.read();
+      expect(saved!.repeatMode, RepeatMode.one);
+      expect(saved.shuffle, isTrue);
+      expect(saved.currentIndex, 1);
+
+      await controller.dispose();
+    });
+
+    test('换歌时位置归零，不把上一首的位置写进新曲目的快照', () async {
+      final (:engine, :controller, :store) = buildPersistent();
+
+      await controller.playQueue(songs(3), startIndex: 0);
+      engine.emitPosition(const Duration(seconds: 120));
+      await pumpEventQueue();
+      await controller.next();
+      await pumpEventQueue();
+
+      final saved = await store.read();
+      expect(saved!.currentIndex, 1);
+      expect(saved.queue[saved.currentIndex].id, 's1');
+      expect(saved.position, Duration.zero, reason: '位置属于曲目，换歌后必须从头算');
+      // 界面上的位置也回到起点，与快照一致。
+      expect(controller.session.position, Duration.zero);
+
+      await controller.dispose();
+    });
+
+    test('播放中位置按间隔节流保存，到达间隔才落盘', () async {
+      final (:engine, :controller, :store) = buildPersistent(
+        interval: const Duration(seconds: 5),
+      );
+      await controller.playQueue(songs(1));
+      await pumpEventQueue();
+
+      engine.emitPosition(const Duration(seconds: 3));
+      await pumpEventQueue();
+      expect((await store.read())!.position, Duration.zero, reason: '不足间隔不写盘');
+
+      engine.emitPosition(const Duration(seconds: 6));
+      await pumpEventQueue();
+      expect((await store.read())!.position, const Duration(seconds: 6));
+
+      await controller.dispose();
+    });
+
+    test('暂停与 seek 立刻保存当前位置', () async {
+      final (:engine, :controller, :store) = buildPersistent(
+        interval: const Duration(seconds: 30),
+      );
+      await controller.playQueue(songs(1));
+      engine.emitPosition(const Duration(seconds: 12));
+      await pumpEventQueue();
+
+      await controller.pause();
+      await pumpEventQueue();
+      expect((await store.read())!.position, const Duration(seconds: 12));
+
+      await controller.seek(const Duration(seconds: 90));
+      await pumpEventQueue();
+      expect((await store.read())!.position, const Duration(seconds: 90));
+
+      await controller.dispose();
+    });
+
+    test('清空队列时把存储一起清掉', () async {
+      final (:engine, :controller, :store) = buildPersistent();
+      await controller.playQueue(songs(2));
+      await pumpEventQueue();
+      expect(await store.read(), isNotNull);
+
+      await controller.playQueue(const []);
+      await pumpEventQueue();
+
+      expect(await store.read(), isNull, reason: '空队列不该留下可恢复的数据');
+
+      await controller.dispose();
+    });
+
+    test('启动时按持久化内容重建队列，恢复曲目与位置，且不自动播放', () async {
+      final (:engine, :controller, :store) = buildPersistent();
+      await store.write(
+        QueueSnapshot(
+          queue: songs(4),
+          currentIndex: 2,
+          position: const Duration(seconds: 57),
+          repeatMode: RepeatMode.all,
+          shuffle: false,
+        ),
+      );
+
+      await controller.restore();
+      await pumpEventQueue();
+
+      final session = controller.session;
+      expect(session.hasSession, isTrue);
+      expect(session.queue.queue.map((s) => s.id), ['s0', 's1', 's2', 's3']);
+      expect(session.currentSong?.id, 's2');
+      expect(session.position, const Duration(seconds: 57));
+      expect(session.queue.repeatMode, RepeatMode.all);
+      expect(session.playing, isFalse, reason: '恢复后必须停在暂停态');
+      expect(engine.loadedIds, ['s2']);
+      expect(engine.seeks, [const Duration(seconds: 57)]);
+      expect(engine.playCount, 0, reason: '不自动开始播放');
+
+      // 恢复后的第一次播放继续当前曲目，不重新加载。
+      await controller.play();
+      expect(engine.playCount, 1);
+      expect(engine.loadedIds, ['s2']);
+
+      await controller.dispose();
+    });
+
+    test('重启往返：新控制器恢复出上次的队列、曲目、位置与模式', () async {
+      final first = buildPersistent();
+      await first.controller.playQueue(songs(5), startIndex: 1);
+      first.controller.setRepeatMode(RepeatMode.one);
+      first.controller.setShuffle(true);
+      first.engine.emitPosition(const Duration(seconds: 88));
+      await pumpEventQueue();
+      await first.controller.dispose();
+
+      final second = buildPersistent();
+      await second.controller.restore();
+      await pumpEventQueue();
+
+      final session = second.controller.session;
+      expect(session.queue.queue.map((s) => s.id), ['s0', 's1', 's2', 's3', 's4']);
+      expect(session.currentSong?.id, 's1');
+      expect(session.position, const Duration(seconds: 88));
+      expect(session.queue.repeatMode, RepeatMode.one);
+      expect(session.queue.shuffle, isTrue);
+      expect(session.playing, isFalse);
+      expect(second.engine.playCount, 0);
+
+      await second.controller.dispose();
+    });
+
+    test('没有存过或数据损坏时恢复为空队列，不崩溃也不加载', () async {
+      final (:engine, :controller, :store) = buildPersistent();
+
+      await controller.restore();
+      expect(controller.session.hasSession, isFalse);
+
+      SharedPreferences.setMockInitialValues({'playback_queue': '{坏数据'});
+      final corrupted = buildPersistent();
+      await corrupted.controller.restore();
+      await pumpEventQueue();
+
+      expect(corrupted.controller.session.hasSession, isFalse);
+      expect(corrupted.controller.session.currentSong, isNull);
+      expect(corrupted.engine.loadedIds, isEmpty);
+      expect(corrupted.engine.playCount, 0);
+
+      await controller.dispose();
+      await corrupted.controller.dispose();
+    });
+
+    test('用户已开始播放时，迟到的恢复不覆盖当前会话', () async {
+      final (:engine, :controller, :store) = buildPersistent();
+      await store.write(
+        QueueSnapshot(
+          queue: songs(2),
+          currentIndex: 0,
+          position: const Duration(seconds: 30),
+          repeatMode: RepeatMode.off,
+          shuffle: false,
+        ),
+      );
+
+      await controller.playQueue(songs(3), startIndex: 2);
+      await controller.restore();
+      await pumpEventQueue();
+
+      expect(controller.session.currentSong?.id, 's2');
+      expect(controller.session.queue.queue.map((s) => s.id), ['s0', 's1', 's2']);
+      expect(engine.loadedIds, ['s2'], reason: '恢复不应再加载另一首');
 
       await controller.dispose();
     });

@@ -5,6 +5,7 @@ import '../data/subsonic/models.dart';
 import 'playback_controller.dart';
 import 'playback_state_machine.dart';
 import 'player_engine.dart';
+import 'queue_store.dart';
 import 'stream_uri.dart';
 
 /// 发布给系统的播放状态签名：只在真正变化时才推。
@@ -65,15 +66,17 @@ class HoomyAudioHandler extends BaseAudioHandler {
   /// 接管播放：创建并持有控制器，把系统命令与状态发布接到它上面。
   ///
   /// 登录后由 `playerControllerProvider` 调用；退出再登录会换成新控制器，
-  /// 这里的监听随之改挂。
+  /// 这里的监听随之改挂。[queueStore] 传给控制器做队列持久化（票据 11）。
   PlaybackController attach({
     required PlayerEngine engine,
     required StreamUriResolver streamUriOf,
     required Uri Function(String coverArtId) coverArtUriOf,
+    QueueStore? queueStore,
   }) {
     final controller = PlaybackController(
       engine: engine,
       streamUriOf: streamUriOf,
+      queueStore: queueStore,
     );
     _controller?.removeListener(_broadcast);
     _controller = controller;

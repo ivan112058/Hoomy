@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:hoomy/core/theme/hoomy_theme.dart';
 import 'package:hoomy/data/auth/auth_controller.dart';
@@ -13,8 +14,10 @@ import 'package:hoomy/features/player/playback_error_banner.dart';
 import 'package:hoomy/features/shell/home_shell.dart';
 import 'package:hoomy/features/songs/songs_page.dart';
 import 'package:hoomy/player/playback_controller.dart';
+import 'package:hoomy/player/playback_state_machine.dart' as playback;
 import 'package:hoomy/player/player_engine.dart';
 import 'package:hoomy/player/player_providers.dart';
+import 'package:hoomy/player/queue_store.dart';
 
 import 'fake_player_engine.dart';
 import 'fake_transport.dart';
@@ -268,5 +271,52 @@ void main() {
 
     expect(find.textContaining('播放失败'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('重启后经 provider 恢复队列：迷你条显示上次曲目且停在暂停态', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final store = QueueStore();
+    await store.write(
+      QueueSnapshot(
+        queue: library(),
+        currentIndex: 1,
+        position: const Duration(seconds: 30),
+        repeatMode: playback.RepeatMode.all,
+        shuffle: false,
+      ),
+    );
+    final engine = FakePlayerEngine();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          subsonicClientProvider.overrideWithValue(fakeClient(FakeTransport())),
+          songRepositoryProvider.overrideWithValue(fakeRepository()),
+          playerEngineProvider.overrideWithValue(engine),
+          queueStoreProvider.overrideWithValue(store),
+        ],
+        child: MaterialApp(theme: hoomyLightTheme(), home: const HomeShell()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 队列与当前曲目来自持久化数据：迷你条直接显示上次在听的那首。
+    expect(
+      find.descendant(
+        of: find.byType(MiniPlayerBar),
+        matching: find.text('以父之名'),
+      ),
+      findsOneWidget,
+    );
+    expect(engine.loadedIds, ['s2']);
+    expect(engine.seeks, [const Duration(seconds: 30)]);
+    expect(engine.playCount, 0, reason: '恢复后停在暂停态，不自动播放');
+    expect(find.byTooltip('播放'), findsOneWidget);
+
+    // 用户按下播放：从恢复的位置继续，不重新加载。
+    await tester.tap(find.byTooltip('播放'));
+    await tester.pumpAndSettle();
+    expect(engine.playCount, 1);
+    expect(engine.loadedIds, ['s2']);
   });
 }

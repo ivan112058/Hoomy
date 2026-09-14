@@ -603,6 +603,143 @@ void main() {
     });
   });
 
+  group('恢复持久化队列（票据 11）', () {
+    /// 按快照恢复的简写：队列 + 当前下标 + 模式 + 位置。
+    Future<void> restore(
+      PlaybackStateMachine machine,
+      List<SubsonicSong> queue,
+      int currentIndex, {
+      RepeatMode repeatMode = RepeatMode.off,
+      bool shuffle = false,
+      Duration position = Duration.zero,
+    }) => machine.restore(
+      state: PlaybackQueueState(
+        queue: queue,
+        currentIndex: currentIndex,
+        repeatMode: repeatMode,
+        shuffle: shuffle,
+      ),
+      position: position,
+    );
+
+    test('重建队列、当前曲目与模式，加载并跳到位置，但停在暂停态', () async {
+      final (:engine, :machine) = build();
+
+      await restore(
+        machine,
+        songs(4),
+        2,
+        repeatMode: RepeatMode.all,
+        position: const Duration(seconds: 42),
+      );
+
+      expect(machine.state.queue.map((s) => s.id), ['s0', 's1', 's2', 's3']);
+      expect(machine.state.currentIndex, 2);
+      expect(machine.state.currentSong?.id, 's2');
+      expect(machine.state.repeatMode, RepeatMode.all);
+      expect(machine.state.shuffle, isFalse);
+      expect(engine.loadedIds, ['s2']);
+      expect(engine.seeks, [const Duration(seconds: 42)]);
+      expect(engine.playCount, 0, reason: '恢复后必须停在暂停态，不自动播放');
+    });
+
+    test('恢复后分区是队列自然序的三段，接着能正常推进', () async {
+      final (:engine, :machine) = build();
+      await restore(machine, songs(4), 1, position: const Duration(seconds: 5));
+
+      expect(machine.view.played.map((s) => s.id), ['s0']);
+      expect(machine.view.currentSong?.id, 's1');
+      expect(machine.view.upcoming.map((s) => s.id), ['s2', 's3']);
+
+      await machine.next();
+
+      expect(machine.state.currentSong?.id, 's2');
+      expect(engine.playCount, 1, reason: '恢复后用户主动播放才出声');
+      expect(engine.loadedIds, ['s1', 's2']);
+    });
+
+    test('位置为零时不额外 seek', () async {
+      final (:engine, :machine) = build();
+
+      await restore(machine, songs(2), 0);
+
+      expect(engine.loadedIds, ['s0']);
+      expect(engine.seeks, isEmpty);
+    });
+
+    test('空队列：清空状态且不加载任何曲目', () async {
+      final (:engine, :machine) = build();
+      await machine.playQueue(songs(3));
+
+      await restore(machine, const [], -1);
+
+      expect(machine.state.queue, isEmpty);
+      expect(machine.state.currentSong, isNull);
+      expect(machine.state.currentIndex, -1);
+      expect(engine.loadedIds, ['s0'], reason: '空队列没有可加载的曲目');
+    });
+
+    test('越界索引收敛到合法范围', () async {
+      final (:engine, :machine) = build();
+
+      await restore(machine, songs(3), 99);
+
+      expect(machine.state.currentIndex, 2);
+      expect(engine.loadedIds, ['s2']);
+    });
+
+    test('随机模式恢复：当前曲目仍是持久化那首，其余排成随后的一轮', () async {
+      final (:engine, :machine) = build(seed: 7);
+
+      await restore(
+        machine,
+        songs(5),
+        2,
+        shuffle: true,
+        position: const Duration(seconds: 8),
+      );
+
+      expect(machine.state.shuffle, isTrue);
+      expect(machine.state.currentSong?.id, 's2');
+      expect(machine.view.played, isEmpty, reason: '重启后不知道上次随机播过哪些');
+      expect(machine.view.upcoming.map((s) => s.id).toSet(), idSet(5)..remove('s2'));
+      expect(engine.playCount, 0);
+
+      await machine.next();
+      expect(idSet(5), contains(machine.state.currentSong?.id));
+    });
+
+    test('恢复加载期间用户点了别的歌：恢复不再对那首 seek（回归）', () async {
+      final (:engine, :machine) = build();
+
+      // 不 await：让恢复停在「已把旧曲目交给引擎加载」的等待点上，
+      // 期间用户点了另一组歌。
+      final restoring = restore(
+        machine,
+        songs(3),
+        0,
+        position: const Duration(seconds: 99),
+      );
+      final playing = machine.playQueue([
+        const SubsonicSong(id: 'x0', title: '新歌 0'),
+        const SubsonicSong(id: 'x1', title: '新歌 1'),
+      ], startIndex: 0);
+      await Future.wait([restoring, playing]);
+
+      expect(
+        engine.seeks,
+        isEmpty,
+        reason: '恢复的旧位置绝不能 seek 到用户新点的曲目上',
+      );
+      expect(
+        machine.state.currentSong?.id,
+        'x0',
+        reason: '用户的点歌结果不被恢复覆盖',
+      );
+      expect(engine.playCount, 1, reason: '新歌照常开始播放');
+    });
+  });
+
   test('dispose 释放引擎', () async {
     final (:engine, :machine) = build();
     await machine.playQueue(songs(1));

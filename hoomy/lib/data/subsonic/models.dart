@@ -54,6 +54,26 @@ class SubsonicSong {
   final String? starred;
 
   bool get isStarred => starred != null;
+
+  /// 与 [SubsonicSong.fromJson] 互逆的序列化，字段名沿用服务端口径。
+  ///
+  /// 供播放队列持久化（票据 11）使用：存完整曲目而非仅 id，重建队列时
+  /// 不依赖网络。缺省字段不写入，读回时仍是 null。
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    if (album != null) 'album': album,
+    if (artist != null) 'artist': artist,
+    if (albumId != null) 'albumId': albumId,
+    if (artistId != null) 'artistId': artistId,
+    if (track != null) 'track': track,
+    if (discNumber != null) 'discNumber': discNumber,
+    if (year != null) 'year': year,
+    if (durationSec != null) 'duration': durationSec,
+    if (suffix != null) 'suffix': suffix,
+    if (coverArtId != null) 'coverArt': coverArtId,
+    if (starred != null) 'starred': starred,
+  };
 }
 
 class SubsonicAlbum {
