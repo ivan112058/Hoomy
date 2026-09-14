@@ -141,6 +141,27 @@ void main() {
       expect(find.text('第一行'), findsNothing);
     });
 
+    testWidgets('歌词只有一行时，点空白处也能切回封面', (tester) async {
+      final engine = FakePlayerEngine();
+      final controller = newController(engine);
+      // 「纯音乐」这类单行歌词：内容比歌词区域小得多。
+      final transport = structuredLyrics([
+        {'start': 0, 'value': '纯音乐'},
+      ]);
+
+      await tester.pumpWidget(harness(controller, transport));
+      await openLyrics(tester, controller);
+      expect(find.text('纯音乐'), findsOneWidget);
+
+      // 点歌词区域底部（远离那一行）也应切回封面。
+      final area = tester.getRect(find.byType(AnimatedSwitcher));
+      await tester.tapAt(Offset(area.center.dx, area.bottom - 8));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CoverArt), findsOneWidget);
+      expect(find.text('纯音乐'), findsNothing);
+    });
+
     testWidgets('进入播放页即预取歌词，切换不额外发请求', (tester) async {
       final engine = FakePlayerEngine();
       final controller = newController(engine);
@@ -420,8 +441,9 @@ void main() {
       expect(find.byType(SingleChildScrollView), findsNothing);
       expect(find.byType(Scrollable), findsNothing);
 
-      // 空态下点一下仍能切回封面。
-      await tester.tap(find.text('暂无歌词'));
+      // 空态下点**空白处**（不是那行文字）也能切回封面。
+      final area = tester.getRect(find.byType(AnimatedSwitcher));
+      await tester.tapAt(Offset(area.center.dx, area.bottom - 8));
       await tester.pumpAndSettle();
       expect(find.byType(CoverArt), findsOneWidget);
     });

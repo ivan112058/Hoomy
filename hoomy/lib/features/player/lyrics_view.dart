@@ -50,22 +50,25 @@ class LyricsView extends StatelessWidget {
       // 整块歌词区域可点：点任意一行都切回封面，与「点封面切到歌词」对称。
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: lyrics.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        // 失败就报失败，不伪装成「没有歌词」。
-        error: (error, _) =>
-            ErrorRetryView(message: describeError(error), onRetry: onRetry),
-        data: (data) => data == null || data.lines.isEmpty
-            ? const _NoLyrics()
-            : ListenableBuilder(
-                listenable: controller,
-                builder: (context, _) => _LyricsList(
-                  // 换歌即换一份列表状态：不残留上一首的滚动位置与高亮行。
-                  key: ValueKey(songId),
-                  lyrics: data,
-                  position: controller.session.position,
+      // 强制铺满：单行歌词（如「纯音乐」）时 `SingleChildScrollView` 在宽松
+      // 约束下只占内容高度，不铺满的话可点区域会缩到那一行上，点空白没反应。
+      child: SizedBox.expand(
+        child: lyrics.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) =>
+              ErrorRetryView(message: describeError(error), onRetry: onRetry),
+          data: (data) => data == null || data.lines.isEmpty
+              ? const _NoLyrics()
+              : ListenableBuilder(
+                  listenable: controller,
+                  builder: (context, _) => _LyricsList(
+                    // 换歌即换一份列表状态：不残留上一首的滚动位置与高亮行。
+                    key: ValueKey(songId),
+                    lyrics: data,
+                    position: controller.session.position,
+                  ),
                 ),
-              ),
+        ),
       ),
     );
   }
