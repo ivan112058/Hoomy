@@ -30,6 +30,7 @@ ADR-0002 出于「一套播放逻辑、无需为桌面端维护第二套音频�
 - 平台 FLAC 解码器仍有硬上限（**无多声道、采样率 ≤ 48 kHz、16-bit 为推荐**）。若曲库中存在 hi-res 或多声道 flac，仍走此路径，不保证可靠。
 - 已知未修 issue（在目标设备上是否复现**未验证**）：**#440**（FLAC seek 落点偏早 5–30 秒，仅 >3 分钟文件，2021 年开至今 OPEN）；**#868**（部分 FLAC 报 `MediaCodecAudioRenderer: Audio codec error`）；#1017（Android 5 上 FLAC 无声，与本设备无关）。
 - 曲库 908 首中 **769 首为 flac**，是主体格式，故以上任一条若在真机复现都会影响主流程。
+- **2026-09-14 修正（iOS）**：**#440 已在 iOS 复现并修正**。真机（iPhone / iOS 26.6.2）上 >3 分钟的 flac 拖进度条后，实际出声比上报位置靠前约 30 秒——进度条跑满时歌仍在放、结束时右侧显示 `+0:31`，歌词与进度条据此「对不上」。日志确认上报位置与墙钟 1:1、seek 也如实落到目标，根因是 AVFoundation 默认按估算做「时间 ↔ 字节」映射。修正：`JustAudioPlayerEngine.load` 改用 `ProgressiveAudioSource` 并打开 `DarwinAssetOptions.preferPreciseDurationAndTiming`（映射为 `AVURLAssetPreferPreciseDurationAndTimingKey`）。真机复测多次前后 seek 后位置一致。**Android 仍未验证**（ExoPlayer 侧是另一条路径），`just_audio_media_kit` 回退保留。
 
 **iOS 的阻塞点在 `audio_service` 而非 `just_audio`**（见 ADR-0008 的 #1139）：必须用 `dependency_overrides` 指向 git 才能获得已合并且真机验证的修复，否则锁屏/控制中心在 iOS 上不工作。
 
