@@ -34,29 +34,42 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _submitting = true);
+    // 先取 messenger：登录成功后本页会被根路由换掉，提示仍要留在屏幕上。
+    final messenger = ScaffoldMessenger.of(context);
+    final notifier = ref.read(authProvider.notifier);
     try {
-      await ref.read(authProvider.notifier).login(
-            _serverController.text,
-            _usernameController.text,
-            _passwordController.text,
-          );
+      await notifier.login(
+        _serverController.text,
+        _usernameController.text,
+        _passwordController.text,
+      );
       // 登录态由根路由监听，这里无需导航。
+      if (!notifier.credentialsPersisted) {
+        _showNotice(messenger, '凭据未能保存到本机，下次打开需要重新登录');
+      }
     } on SubsonicException catch (e) {
-      _showError(e.isAuthError ? '用户名或密码错误' : e.message);
+      _showError(messenger, e.isAuthError ? '用户名或密码错误' : e.message);
     } on FormatException catch (e) {
-      _showError(e.message);
+      _showError(messenger, e.message);
     } catch (e) {
-      _showError('登录失败: $e');
+      _showError(messenger, '登录失败: $e');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
 
-  void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Theme.of(context).colorScheme.error),
+  void _showError(ScaffoldMessengerState messenger, String message) {
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
     );
+  }
+
+  /// 非错误的提醒（例如凭据存不下来）：用中性配色，不冒充失败。
+  void _showNotice(ScaffoldMessengerState messenger, String message) {
+    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
