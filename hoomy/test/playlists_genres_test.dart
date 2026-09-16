@@ -3,11 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/core/theme/hoomy_theme.dart';
-import 'package:hoomy/data/auth/auth_controller.dart';
-import 'package:hoomy/data/repositories/genre_repository.dart';
-import 'package:hoomy/data/repositories/playlist_repository.dart';
-import 'package:hoomy/data/repositories/repository_providers.dart';
-import 'package:hoomy/data/repositories/star_repository.dart';
+import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/features/more/genre_list_page.dart';
 import 'package:hoomy/features/more/more_page.dart';
 import 'package:hoomy/features/playlists/playlists_page.dart';
@@ -19,28 +15,22 @@ import 'fake_transport.dart';
 
 /// 票据 13 的行为验收：播放列表只读浏览与整单播放、风格列表与风格曲目。
 ///
-/// 全部请求打在 [FakeTransport] 上（S1 接缝）；本票据不调用任何写端点，
-/// 「只读」由最后一条用例显式断言。
+/// 全部请求打在 [FakeTransport] 上（S1 接缝，真会话 + 假传输）；本票据不调用
+/// 任何写端点，「只读」由最后一条用例显式断言。
 void main() {
   Uri resolveUri(String id) =>
       Uri.parse('http://nas.local:4533/rest/stream.view?id=$id&format=raw');
 
-  /// 页面测试台：三个 repository 指向**同一个**假传输，于是「页面发了哪些
-  /// 请求」与「有没有写端点」可以在同一处断言。
+  /// 页面测试台：会话指向**同一个**假传输，于是「页面发了哪些请求」与
+  /// 「有没有写端点」可以在同一处断言。
   Widget harness(
     Widget page, {
     required FakeTransport transport,
     PlaybackController? controller,
   }) {
-    final client = fakeClient(transport);
     return ProviderScope(
       overrides: [
-        subsonicClientProvider.overrideWithValue(null),
-        playlistRepositoryProvider.overrideWithValue(
-          PlaylistRepository(client),
-        ),
-        genreRepositoryProvider.overrideWithValue(GenreRepository(client)),
-        starRepositoryProvider.overrideWithValue(StarRepository(client)),
+        sessionProvider.overrideWithValue(fakeSession(transport)),
         if (controller != null)
           playerControllerProvider.overrideWithValue(controller),
       ],

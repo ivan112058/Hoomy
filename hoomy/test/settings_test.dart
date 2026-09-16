@@ -12,6 +12,7 @@ import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/cover/cover_cache.dart';
 import 'package:hoomy/data/cover/cover_cache_provider.dart';
 import 'package:hoomy/data/credentials/credential_store.dart';
+import 'package:hoomy/data/http/http_transport.dart';
 import 'package:hoomy/data/settings/settings_store.dart';
 import 'package:hoomy/data/settings/theme_mode_controller.dart';
 import 'package:hoomy/features/more/more_page.dart';
@@ -119,7 +120,6 @@ void main() {
     Widget pageHarness({CoverCache? cache}) {
       return ProviderScope(
         overrides: [
-          subsonicClientProvider.overrideWithValue(null),
           if (cache != null) coverCacheProvider.overrideWithValue(cache),
         ],
         child: MaterialApp(
@@ -131,9 +131,13 @@ void main() {
 
     /// 整机测试台：真实的 [HoomyApp]（主题接线与登录态路由都在内），
     /// 主题切换与退出登录必须打在它上面，不能打在复制品上。
+    ///
+    /// 传输换成假的那一条：闸口起的会话与五个页面因此不触达真实网络。
     Widget appHarness() {
       return ProviderScope(
-        overrides: [subsonicClientProvider.overrideWithValue(null)],
+        overrides: [
+          httpTransportProvider.overrideWithValue(fakeDio(emptyLibraryTransport())),
+        ],
         child: const HoomyApp(),
       );
     }
@@ -301,7 +305,7 @@ void main() {
     });
     final transport = FakeTransport()..ok('ping.view');
     final container = ProviderContainer.test(
-      overrides: [subsonicClientProvider.overrideWithValue(fakeClient(transport))],
+      overrides: [httpTransportProvider.overrideWithValue(fakeDio(transport))],
     );
     // 先让登录态就绪，再退出。
     expect(await container.read(authProvider.future), isNotNull);
@@ -319,7 +323,6 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [subsonicClientProvider.overrideWithValue(null)],
           child: MaterialApp(
             theme: hoomyLightTheme(),
             home: const MorePage(),
@@ -336,6 +339,7 @@ void main() {
     });
   });
 }
+
 
 /// 从主壳进入「更多」Tab 再进入设置页。
 Future<void> _openSettings(WidgetTester tester) async {

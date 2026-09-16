@@ -3,10 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:hoomy/data/auth/auth_controller.dart';
-import 'package:hoomy/data/repositories/album_repository.dart';
-import 'package:hoomy/data/repositories/artist_repository.dart';
-import 'package:hoomy/data/repositories/repository_providers.dart';
 import 'package:hoomy/features/albums/albums_page.dart';
 import 'package:hoomy/features/artists/artists_page.dart';
 import 'package:hoomy/features/shared/alphabet_index_bar.dart';
@@ -281,11 +277,7 @@ void main() {
 
     await tester.pumpWidget(harness(
       const AlbumsPage(),
-      [
-        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
-        subsonicClientProvider.overrideWithValue(null),
-        albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport))),
-      ],
+      sessionOverrides(transport),
     ));
     await tester.pumpAndSettle();
 
@@ -317,11 +309,7 @@ void main() {
 
     await tester.pumpWidget(harness(
       const AlbumsPage(),
-      [
-        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
-        subsonicClientProvider.overrideWithValue(null),
-        albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport))),
-      ],
+      sessionOverrides(transport),
     ));
     await tester.pumpAndSettle();
 
@@ -360,11 +348,7 @@ void main() {
 
     await tester.pumpWidget(harness(
       const ArtistsPage(),
-      [
-        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
-        subsonicClientProvider.overrideWithValue(null),
-        artistRepositoryProvider.overrideWithValue(ArtistRepository(fakeClient(transport))),
-      ],
+      sessionOverrides(transport),
     ));
     await tester.pumpAndSettle();
 

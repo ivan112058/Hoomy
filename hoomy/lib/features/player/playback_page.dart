@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/screen/screen_awake.dart';
 import '../../core/theme/hoomy_theme.dart';
-import '../../data/repositories/repository_providers.dart';
+import '../../data/session/session_providers.dart';
 import '../../data/star/star_target.dart';
 import '../../data/subsonic/models.dart';
 import '../../player/playback_controller.dart';

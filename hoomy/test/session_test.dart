@@ -2,9 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/data/lyrics/song_lyrics.dart';
-import 'package:hoomy/data/repositories/paged_fetch.dart';
+import 'package:hoomy/data/session/paged_fetch.dart';
 import 'package:hoomy/data/session/session.dart';
 import 'package:hoomy/data/star/star_target.dart';
+import 'package:hoomy/data/subsonic/subsonic_client.dart';
 
 import 'fake_transport.dart';
 
@@ -98,6 +99,89 @@ void main() {
 
       expect(songs.single.id, 's1');
       expect(songs.single.durationSec, isNull);
+    });
+
+    /// 按 `songOffset` 返回对应页的假传输；未登记的 offset 视为空页。
+    FakeTransport pagedTransport(Map<int, List<Map<String, Object?>>> pages) {
+      final transport = FakeTransport();
+      transport.responder = (options) {
+        final offset =
+            int.tryParse(options.uri.queryParameters['songOffset'] ?? '0') ?? 0;
+        return jsonResponse({
+          'subsonic-response': {
+            'status': 'ok',
+            'searchResult3': {'song': pages[offset] ?? const <Object?>[]},
+          },
+        });
+      };
+      return transport;
+    }
+
+    List<String?> offsetsOf(FakeTransport transport) => transport.requests
+        .map((r) => r.uri.queryParameters['songOffset'])
+        .toList();
+
+    test('单页不足一页时只请求一次', () async {
+      final transport = pagedTransport({0: songPage(0, 3)});
+
+      final songs = await sessionWith(transport).allSongs();
+
+      expect(songs.map((s) => s.id), ['s0', 's1', 's2']);
+      expect(offsetsOf(transport), ['0']);
+    });
+
+    test('恰好整页后接空页时终止', () async {
+      final transport = pagedTransport({0: songPage(0, 500), 500: const []});
+
+      final songs = await sessionWith(transport).allSongs();
+
+      expect(songs, hasLength(500));
+      expect(offsetsOf(transport), ['0', '500']);
+    });
+
+    test('服务端忽略 offset 时不会死循环，结果去重', () async {
+      final transport = FakeTransport();
+      transport.responder = (_) => jsonResponse({
+        'subsonic-response': {
+          'status': 'ok',
+          'searchResult3': {'song': songPage(0, 500)},
+        },
+      });
+
+      final songs = await sessionWith(transport).allSongs();
+
+      expect(songs, hasLength(500));
+      // 第二页整页都是重复项，立即终止；不会无限翻页。
+      expect(offsetsOf(transport), ['0', '500']);
+    });
+
+    test('翻页中途失败时抛出可读异常，不返回半截结果', () async {
+      final transport = FakeTransport();
+      transport.responder = (options) {
+        if (options.uri.queryParameters['songOffset'] == '500') {
+          throw DioException.connectionError(
+            requestOptions: options,
+            reason: 'Connection refused',
+          );
+        }
+        return jsonResponse({
+          'subsonic-response': {
+            'status': 'ok',
+            'searchResult3': {'song': songPage(0, 500)},
+          },
+        });
+      };
+
+      await expectLater(
+        sessionWith(transport).allSongs(),
+        throwsA(
+          isA<SubsonicException>().having(
+            (e) => e.message,
+            'message',
+            '无法连接到服务器，请检查地址与网络',
+          ),
+        ),
+      );
     });
   });
 
@@ -197,9 +281,113 @@ void main() {
 
       expect(await sessionWith(transport).lyricsFor(songId: 's1'), isNull);
     });
+
+    test('同一首歌只取一次：解析结果按曲目缓存', () async {
+      final transport = FakeTransport()
+        ..ok('getLyricsBySongId.view', {
+          'lyricsList': {
+            'structuredLyrics': [
+              {
+                'synced': false,
+                'line': [
+                  {'value': '纯文本'},
+                ],
+              },
+            ],
+          },
+        });
+      final session = sessionWith(transport);
+
+      final first = await session.lyricsFor(songId: 's1');
+      final second = await session.lyricsFor(songId: 's1');
+
+      expect(identical(first, second), isTrue);
+      expect(transport.requests, hasLength(1));
+    });
+
+    test('「没有歌词」也缓存下来，不重复查', () async {
+      final transport = FakeTransport()
+        ..ok('getLyricsBySongId.view')
+        ..ok('getLyrics.view');
+      final session = sessionWith(transport);
+
+      expect(await session.lyricsFor(songId: 's1'), isNull);
+      expect(await session.lyricsFor(songId: 's1'), isNull);
+
+      // 结构化 + 纯文本各一次，第二次调用走缓存。
+      expect(transport.requests, hasLength(2));
+    });
+
+    test('结构化无结果时回退纯文本，带上歌手与标题', () async {
+      final transport = FakeTransport()
+        ..ok('getLyricsBySongId.view')
+        ..ok('getLyrics.view', {
+          'lyrics': {'value': '第一行\n第二行'},
+        });
+
+      final lyrics = await sessionWith(transport)
+          .lyricsFor(songId: 's1', artist: '周杰伦', title: '晴天');
+
+      expect(lyrics!.tier, LyricTier.plain);
+      expect(lyrics.lines.map((l) => l.text), ['第一行', '第二行']);
+      expect(transport.lastEndpoint, 'getLyrics.view');
+      expect(transport.lastQuery['artist'], '周杰伦');
+      expect(transport.lastQuery['title'], '晴天');
+    });
+
+    test('不同曲目各自缓存、各自取数', () async {
+      final transport = FakeTransport()
+        ..ok('getLyricsBySongId.view', {
+          'lyricsList': {
+            'structuredLyrics': [
+              {
+                'synced': false,
+                'line': [
+                  {'value': '歌词'},
+                ],
+              },
+            ],
+          },
+        });
+      final session = sessionWith(transport);
+
+      await session.lyricsFor(songId: 's1');
+      await session.lyricsFor(songId: 's2');
+
+      expect(transport.requests, hasLength(2));
+      expect(transport.requests.first.uri.queryParameters['id'], 's1');
+      expect(transport.lastQuery['id'], 's2');
+    });
+
+    test('失败的取数不缓存，重试会重新请求', () async {
+      final transport = FakeTransport()
+        ..fail('getLyricsBySongId.view', 40, 'Wrong username or password');
+      final session = sessionWith(transport);
+
+      await expectLater(session.lyricsFor(songId: 's1'), throwsA(anything));
+      expect(transport.requests, hasLength(1));
+
+      // 服务端恢复后重试：不能被上一次的失败缓存挡住。
+      transport.ok('getLyricsBySongId.view', {
+        'lyricsList': {
+          'structuredLyrics': [
+            {
+              'synced': false,
+              'line': [
+                {'value': '重试成功'},
+              ],
+            },
+          ],
+        },
+      });
+      final lyrics = await session.lyricsFor(songId: 's1');
+
+      expect(lyrics!.lines.single.text, '重试成功');
+      expect(transport.requests, hasLength(2));
+    });
   });
 
-  group('专辑、歌手、歌单、风格都经会话取回', () {
+  group('专辑、歌手、播放列表、风格都经会话取回', () {
     test('全部专辑与专辑详情（含曲目）', () async {
       final transport = FakeTransport()
         ..ok('getAlbumList2.view', {
@@ -278,7 +466,7 @@ void main() {
       expect(detail.songs.single.title, 'Hello');
     });
 
-    test('歌单列表与歌单详情（含曲目）', () async {
+    test('播放列表列表与播放列表详情（含曲目）', () async {
       final transport = FakeTransport()
         ..ok('getPlaylists.view', {
           'playlists': {
@@ -330,6 +518,140 @@ void main() {
       expect(genres.single.name, 'Rock', reason: '空名风格点进去只会换来服务端错误');
       expect(songs.single.title, '摇滚');
       expect(transport.lastQuery['genre'], 'Rock');
+    });
+
+    test('专辑按 offset 翻页取全量，请求带排序与页大小', () async {
+      final transport = FakeTransport();
+      transport.responder = (options) {
+        final offset =
+            int.tryParse(options.uri.queryParameters['offset'] ?? '0') ?? 0;
+        final page = switch (offset) {
+          0 => [
+              for (var i = 0; i < 500; i++)
+                {'id': 'al$i', 'name': '专辑 $i'},
+            ],
+          500 => [
+              for (var i = 500; i < 518; i++)
+                {'id': 'al$i', 'name': '专辑 $i'},
+            ],
+          _ => <Map<String, Object?>>[],
+        };
+        return jsonResponse({
+          'subsonic-response': {
+            'status': 'ok',
+            'albumList2': {'album': page},
+          },
+        });
+      };
+
+      final albums = await sessionWith(transport).allAlbums();
+
+      expect(albums, hasLength(518));
+      expect(albums.last.id, 'al517');
+      expect(
+        transport.requests.map((r) => r.uri.queryParameters['offset']),
+        ['0', '500'],
+      );
+      final query = transport.requests.first.uri.queryParameters;
+      expect(query['type'], 'alphabeticalByName');
+      expect(query['size'], '$kListPageSize');
+    });
+
+    test('风格曲目按 offset 翻页，第二次带 offset=500', () async {
+      final transport = FakeTransport();
+      transport.responder = (options) {
+        final offset =
+            int.tryParse(options.uri.queryParameters['offset'] ?? '0') ?? 0;
+        final page = switch (offset) {
+          0 => songPage(0, 500),
+          500 => songPage(500, 20),
+          _ => <Map<String, Object?>>[],
+        };
+        return jsonResponse({
+          'subsonic-response': {
+            'status': 'ok',
+            'songsByGenre': {'song': page},
+          },
+        });
+      };
+      final session = sessionWith(transport);
+
+      final songs = await session.genreSongs('Rock');
+
+      expect(songs, hasLength(520));
+      expect(songs.last.id, 's519');
+      expect(
+        transport.requests.map((r) => r.uri.queryParameters['offset']),
+        ['0', '500'],
+      );
+      expect(transport.requests.first.uri.queryParameters['genre'], 'Rock');
+      expect(transport.requests.first.uri.queryParameters['count'], '$kListPageSize');
+    });
+
+    test('歌手详情逐张专辑取曲目后打平、按 id 去重，且只发一次 getArtist', () async {
+      // `ar1` 名下两张专辑，`al2` 里有一首与 `al1` 重复（用于验证去重）。
+      final transport = FakeTransport();
+      transport.responder = (options) {
+        final id = options.uri.queryParameters['id'];
+        final envelope = switch (id) {
+          'ar1' => {
+              'artist': {
+                'id': 'ar1',
+                'name': 'Adele',
+                'album': [
+                  {'id': 'al1', 'name': '25'},
+                  {'id': 'al2', 'name': '21'},
+                ],
+              },
+            },
+          'al1' => {
+              'album': {
+                'id': 'al1',
+                'name': '25',
+                'song': [
+                  {'id': 's1', 'title': 'Hello'},
+                  {'id': 's2', 'title': 'Send My Love'},
+                ],
+              },
+            },
+          'al2' => {
+              'album': {
+                'id': 'al2',
+                'name': '21',
+                'song': [
+                  {'id': 's2', 'title': 'Send My Love'},
+                  {'id': 's3', 'title': 'Rolling in the Deep'},
+                ],
+              },
+            },
+          _ => throw StateError('未注册的 id: $id'),
+        };
+        return jsonResponse({
+          'subsonic-response': {'status': 'ok', ...envelope},
+        });
+      };
+
+      final detail = await sessionWith(transport).artistDetail('ar1');
+
+      expect(detail.songs.map((s) => s.id), ['s1', 's2', 's3']);
+      expect(
+        transport.requests
+            .where((r) => r.uri.pathSegments.last == 'getArtist.view')
+            .length,
+        1,
+        reason: '页面为一个歌手只该发一次 getArtist',
+      );
+    });
+
+    test('歌手没有专辑时全部歌曲为空', () async {
+      final transport = FakeTransport()
+        ..ok('getArtist.view', {
+          'artist': {'id': 'ar1', 'name': '无名'},
+        });
+
+      final detail = await sessionWith(transport).artistDetail('ar1');
+
+      expect(detail.songs, isEmpty);
     });
   });
 }

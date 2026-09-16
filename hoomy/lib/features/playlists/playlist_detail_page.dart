@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/repositories/repository_providers.dart';
+import '../../data/session/session_providers.dart';
 import '../../data/subsonic/models.dart';
 import '../shared/async_view.dart';
 import '../shared/play_rows.dart';
@@ -11,7 +10,7 @@ import '../shared/song_list_view.dart';
 ///
 /// **只读**：不提供新建、改名、删除与增删曲目（spec「范围之外」）。
 /// 曲目行上的收藏是票据 12 的能力，不是播放列表的写操作。
-class PlaylistDetailPage extends ConsumerWidget {
+class PlaylistDetailPage extends StatelessWidget {
   const PlaylistDetailPage({super.key, required this.playlist});
 
   /// 列表页点进来的那个播放列表：`id` 用来取详情，`name` 先撑住标题栏，
@@ -19,17 +18,16 @@ class PlaylistDetailPage extends ConsumerWidget {
   final SubsonicPlaylist playlist;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final playlistRepository = ref.watch(playlistRepositoryProvider);
-    if (playlistRepository == null) return const SizedBox.shrink();
+  Widget build(BuildContext context) {
     return PageScaffold(
       title: playlist.name,
-      body: AsyncView(
-        load: () async => (await playlistRepository.getPlaylist(playlist.id)).songs,
+      body: AsyncValueView(
+        provider: playlistProvider(playlist.id),
         emptyMessage: '这个播放列表还没有曲目',
-        itemBuilder: (context, songs) => SongListView(
-          songs: songs,
-          header: PlayAllRow(songs: songs),
+        isEmpty: (playlist) => playlist.songs.isEmpty,
+        itemBuilder: (context, playlist) => SongListView(
+          songs: playlist.songs,
+          header: PlayAllRow(songs: playlist.songs),
         ),
       ),
     );

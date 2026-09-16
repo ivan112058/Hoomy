@@ -4,8 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/core/screen/screen_awake.dart';
 import 'package:hoomy/core/theme/hoomy_theme.dart';
-import 'package:hoomy/data/repositories/lyrics_repository.dart';
-import 'package:hoomy/data/repositories/repository_providers.dart';
+import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/features/player/playback_page.dart';
 import 'package:hoomy/features/shared/cover_art.dart';
@@ -17,8 +16,8 @@ import 'fake_transport.dart';
 
 /// 票据 10 的界面验收：歌词三档呈现、滚动跟随、空态与封面／歌词切换。
 ///
-/// 歌词经真实的 [LyricsRepository]（假传输提供固定响应）取回，因此
-/// 「服务端返回什么 → 界面呈现什么档位」是整条链路在验证。
+/// 歌词经**真会话**（假传输提供固定响应）取回，因此「服务端返回什么 → 界面
+/// 呈现什么档位」是整条链路在验证。
 void main() {
   const song1 = SubsonicSong(
     id: 's1',
@@ -52,11 +51,10 @@ void main() {
     FakeTransport transport, {
     ScreenAwake? screenAwake,
   }) {
-    final client = fakeClient(transport);
     return ProviderScope(
       overrides: [
         playerControllerProvider.overrideWithValue(controller),
-        lyricsRepositoryProvider.overrideWithValue(LyricsRepository(client)),
+        sessionProvider.overrideWithValue(fakeSession(transport)),
         if (screenAwake != null)
           screenAwakeProvider.overrideWithValue(screenAwake),
       ],

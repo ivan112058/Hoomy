@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/hoomy_theme.dart';
-import '../../data/repositories/repository_providers.dart';
+import '../../data/session/session_providers.dart';
 import '../../data/star/star_target.dart';
 import '../../data/subsonic/models.dart';
 import '../shared/async_view.dart';
@@ -29,20 +28,18 @@ void openAlbumDetail(BuildContext context, SubsonicAlbum album) {
 /// 有意**不做**参考项目的 150dp 头部大图：封面用 [CoverArt] 且不传 `size`，
 /// 即专辑网格已经在用的同一份缓存身份，进入详情不额外请求一张头部大图。
 /// 也不提供「加播放列表」「加队列」入口（MVP 歌单只读、队列没有写入口）。
-class AlbumDetailPage extends ConsumerWidget {
+class AlbumDetailPage extends StatelessWidget {
   const AlbumDetailPage({super.key, required this.album});
 
   /// 网格点进来的那张专辑：`id` 用来取带曲目的详情，`name` 先撑住标题栏。
   final SubsonicAlbum album;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final albumRepository = ref.watch(albumRepositoryProvider);
-    if (albumRepository == null) return const SizedBox.shrink();
+  Widget build(BuildContext context) {
     return PageScaffold(
       title: album.name,
-      body: AsyncView(
-        load: () => albumRepository.getAlbum(album.id),
+      body: AsyncValueView(
+        provider: albumProvider(album.id),
         itemBuilder: (context, album) => CustomScrollView(
           slivers: [
             SliverToBoxAdapter(child: _AlbumHeader(album: album)),

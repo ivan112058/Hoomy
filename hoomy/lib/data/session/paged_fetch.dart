@@ -1,7 +1,8 @@
-/// 各 repository 共用的分页取全量循环。
+/// 会话内部的分页取全量循环。
 ///
 /// 分页只是传输手段，不是 UI 概念：Subsonic 的列表响应不带总数，
-/// 只能靠 offset 翻页直到短页或空页（ADR-0005）。
+/// 只能靠 offset 翻页直到短页或空页（ADR-0005）。它是会话的实现细节，
+/// 不外露给页面。
 library;
 
 /// 列表取数的单页条数。会话内部的取数共用这一个值，不再各自声明副本。
@@ -15,6 +16,10 @@ const kListPageSize = 500;
 /// 结果按 [idOf] 去重并保留首次出现的顺序。服务端若返回重叠页，
 /// 重复项被丢弃；若不按 offset 翻页（整页都是重复项），立即终止，避免死循环。
 /// 因此返回值不含重复项，也不会无限翻页。
+///
+/// **不变量：返回值就是「全库已取回」的那一份。** 页面上的本地搜索与过滤都建立在
+/// 这条不变量上；将来若改成增量加载，必须动这里，否则本地搜索会静默返回不完整结果
+/// （ADR-0005）。
 Future<List<T>> fetchAllPages<T>({
   required Future<List<T>> Function(int offset) fetchPage,
   required String Function(T item) idOf,

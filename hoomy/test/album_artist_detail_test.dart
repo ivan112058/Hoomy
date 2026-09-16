@@ -6,13 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/core/theme/hoomy_theme.dart';
-import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/cover/cover_cache.dart';
 import 'package:hoomy/data/cover/cover_cache_provider.dart';
-import 'package:hoomy/data/repositories/album_repository.dart';
-import 'package:hoomy/data/repositories/artist_repository.dart';
-import 'package:hoomy/data/repositories/repository_providers.dart';
-import 'package:hoomy/data/repositories/star_repository.dart';
+import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/star/star_target.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/features/albums/album_detail_page.dart';
@@ -30,36 +26,23 @@ import 'fake_transport.dart';
 
 /// 票据 14 的行为验收：专辑详情与歌手详情。
 ///
-/// 页面经 repository 取数、写请求只打 [FakeTransport]（S1 接缝）；
-/// 「不请求 150dp 头部大图」用记录封面请求尺寸的假缓存断言。
+/// 页面经**会话**取数（真会话 + 假传输，ADR-0015 测试决策），写请求只打
+/// [FakeTransport]（S1 接缝）；「不请求 150dp 头部大图」用记录封面请求尺寸的
+/// 假缓存断言。
 void main() {
   Uri resolveUri(String id) =>
       Uri.parse('http://nas.local:4533/rest/stream.view?id=$id&format=raw');
 
-  /// 页面测试台：专辑与歌手仓库指向**同一个**假传输，于是「页面发了哪些请求」
-  /// 与「有没有写端点」都能在同一处断言。
+  /// 页面测试台：会话指向假传输，于是「页面发了哪些请求」与「有没有写端点」
+  /// 都能在同一处断言。
   Widget harness(
     Widget page, {
     required FakeTransport transport,
     PlaybackController? controller,
     CoverCache? coverCache,
-    bool withClient = false,
   }) => ProviderScope(
     overrides: [
-      // 默认未登录：封面只渲染占位，页面不触达真实客户端。
-      // 需要断言封面缓存身份时用 [withClient] 拿真实的 getCoverArt 地址。
-      subsonicClientProvider.overrideWithValue(
-        withClient ? fakeClient(transport) : null,
-      ),
-      albumRepositoryProvider.overrideWithValue(
-        AlbumRepository(fakeClient(transport)),
-      ),
-      artistRepositoryProvider.overrideWithValue(
-        ArtistRepository(fakeClient(transport)),
-      ),
-      starRepositoryProvider.overrideWithValue(
-        StarRepository(fakeClient(transport)),
-      ),
+      sessionProvider.overrideWithValue(fakeSession(transport)),
       coverCacheProvider.overrideWithValue(coverCache),
       if (controller != null)
         playerControllerProvider.overrideWithValue(controller),
@@ -388,7 +371,6 @@ void main() {
           const AlbumDetailPage(album: albumSummary),
           transport: libraryTransport(),
           coverCache: cache,
-          withClient: true,
         ),
       );
       await tester.pumpAndSettle();

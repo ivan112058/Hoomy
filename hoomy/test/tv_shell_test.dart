@@ -9,7 +9,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hoomy/core/alphabet/alphabet.dart';
 import 'package:hoomy/core/platform/form_factor.dart';
 import 'package:hoomy/core/theme/hoomy_theme.dart';
-import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/http/http_transport.dart';
 import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/subsonic/models.dart';
@@ -34,13 +33,12 @@ import 'fake_transport.dart';
 void main() {
   /// 以指定形态包一层，模拟 `HoomyApp` 在 TV 上注入的那份环境。
   ///
-  /// 外壳之下会话必不为空（票据 02）：这里注入「真会话 + 假传输」。协议客户端
-  /// 置空是其余页面仍走旧接线（票据 03 迁移），与歌曲页无关。
+  /// 外壳之下会话必不为空（票据 02）：这里注入「真会话 + 假传输」，读端点都有
+  /// 空的固定响应，页面因此落在空态而不是错误态。
   Widget harness(Widget home, {HoomyFormFactor formFactor = HoomyFormFactor.tv, List<Override> overrides = const []}) =>
       ProviderScope(
         overrides: [
-          sessionProvider.overrideWithValue(fakeSession(FakeTransport())),
-          subsonicClientProvider.overrideWithValue(null),
+          sessionProvider.overrideWithValue(fakeSession(emptyLibraryTransport())),
           ...overrides,
         ],
         child: HoomyFormFactorScope(
@@ -256,6 +254,14 @@ void main() {
       return controller;
     }
 
+    /// 让异步的歌词预取跑完再断言：`pumpAndSettle` 只看有没有待调度帧，Dio 的
+    /// Future 链可能仍留在途，测试结束时会报「Timer is still pending」。
+    Future<void> settle(WidgetTester tester) async {
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+    }
+
     testWidgets('播放页：确认键在封面与歌词之间切换', (tester) async {
       final engine = FakePlayerEngine();
       final controller = newController(engine);
@@ -266,7 +272,7 @@ void main() {
         ),
       );
       await controller.playQueue(songs, startIndex: 0);
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       // 封面态：没有歌词。
       expect(find.text('暂无歌词'), findsNothing);
@@ -276,7 +282,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.select);
       await tester.pumpAndSettle();
-      // 没有歌词仓库（客户端为 null）时是明确的空态，而不是空白。
+      // 服务端没有这首歌的歌词时是明确的空态，而不是空白。
       expect(find.text('暂无歌词'), findsOneWidget);
 
       // 再按一次确认键切回封面。
@@ -297,12 +303,12 @@ void main() {
         ),
       );
       await controller.playQueue(songs, startIndex: 0);
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       Focus.of(tester.element(find.byIcon(Icons.skip_next))).requestFocus();
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.select);
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       expect(engine.lastLoadedId, 's2');
     });
@@ -321,7 +327,7 @@ void main() {
         ),
       );
       await controller.playQueue(songs, startIndex: 0);
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       Focus.of(tester.element(find.text('晴天'))).requestFocus();
       await tester.pumpAndSettle();
@@ -384,3 +390,4 @@ void main() {
     });
   });
 }
+

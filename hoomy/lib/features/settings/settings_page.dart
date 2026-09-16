@@ -157,11 +157,9 @@ class _LogoutRow extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
+    // 清凭据即让会话消失；路由本身订阅会话状态并重置导航栈回登录页（票据 03），
+    // 因此这里不再手工弹栈。
     await ref.read(authProvider.notifier).logout();
-    if (!context.mounted) return;
-    // 根路由已切到登录页，但设置页是压在它上面的 push 路由，要一并弹掉，
-    // 否则用户会停留在设置页看不到登录页。
-    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override

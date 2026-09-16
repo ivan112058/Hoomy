@@ -189,15 +189,14 @@ void main() {
     });
 
     testWidgets('凭据存不下来时仍然进应用，并明确告知下次要重登', (tester) async {
-      final transport = FakeTransport()..ok('ping.view');
+      // 登录后五个 Tab 都会经会话取数：给假传输一份空曲库，隔离掉网络。
+      final transport = emptyLibraryTransport()..ok('ping.view');
 
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             httpTransportProvider.overrideWithValue(_transportWith(transport)),
             credentialStoreProvider.overrideWithValue(failingStore()),
-            // 登录后的曲库取数与本用例无关，隔离掉网络。
-            subsonicClientProvider.overrideWithValue(null),
           ],
           child: const HoomyApp(),
         ),

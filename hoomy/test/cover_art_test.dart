@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/cover/cover_cache.dart';
 import 'package:hoomy/data/cover/cover_cache_provider.dart';
+import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/features/shared/cover_art.dart';
 
 import 'fake_transport.dart';
@@ -40,10 +40,8 @@ void main() {
 
   Widget harness(CoverCache? cache) => ProviderScope(
     overrides: [
-      // 真实客户端只用来生成带认证的封面地址，不发请求。
-      subsonicClientProvider.overrideWithValue(
-        addressOnlyClient(),
-      ),
+      // 会话只用来拼带认证的封面地址，不发请求；缓存用自己的假 fetch。
+      sessionProvider.overrideWithValue(fakeSession(FakeTransport())),
       coverCacheProvider.overrideWithValue(cache),
     ],
     child: const MaterialApp(
@@ -143,13 +141,8 @@ void main() {
 
   testWidgets('没有封面 id 时显示占位，不构建图片', (tester) async {
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          subsonicClientProvider.overrideWithValue(
-            addressOnlyClient(),
-          ),
-        ],
-        child: const MaterialApp(
+      const ProviderScope(
+        child: MaterialApp(
           home: Scaffold(body: CoverArt(coverArtId: null)),
         ),
       ),

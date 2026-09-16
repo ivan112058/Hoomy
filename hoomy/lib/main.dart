@@ -68,17 +68,22 @@ class HoomyApp extends ConsumerWidget {
         final content = child ?? const SizedBox.shrink();
         return HoomyFormFactorScope(
           formFactor: formFactor,
-          // TV 上方向键**只**用于移动焦点：滑块等部件不能再把左右键当作
-          // 「微调数值」（这是 Flutter 给电视界面的导航模式）。不设这一项时
-          // 方向键是「传统」语义，文本输入框还会把上下键吞掉、焦点出不去。
-          child: formFactor == HoomyFormFactor.tv
-              ? MediaQuery(
-                  data: MediaQuery.of(context).copyWith(
-                    navigationMode: NavigationMode.directional,
-                  ),
-                  child: content,
-                )
-              : content,
+          // 会话的作用域在 **Navigator 之上**：闸口 push 出去的详情页与播放页
+          // 在 Overlay 上是 home 路由的兄弟，只有包住整个 Navigator 才读得到
+          // 会话（票据 03 修正）。
+          child: SessionScope(
+            // TV 上方向键**只**用于移动焦点：滑块等部件不能再把左右键当作
+            // 「微调数值」（这是 Flutter 给电视界面的导航模式）。不设这一项时
+            // 方向键是「传统」语义，文本输入框还会把上下键吞掉、焦点出不去。
+            child: formFactor == HoomyFormFactor.tv
+                ? MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      navigationMode: NavigationMode.directional,
+                    ),
+                    child: content,
+                  )
+                : content,
+          ),
         );
       },
       home: const LoginGate(),

@@ -75,8 +75,14 @@ void main() {
   }
 
   /// 播放页的测试台：真实 [PlaybackPage] + 注入的控制器。
+  ///
+  /// 歌词异步值替换成「没有歌词」：本文件的断言对象是播放控件的呈现与交互，
+  /// 与歌词取数无关（ADR-0015 测试决策允许在这种用例里替换具体的取数异步值）。
   Widget pageHarness(PlaybackController controller) => ProviderScope(
-    overrides: [playerControllerProvider.overrideWithValue(controller)],
+    overrides: [
+      playerControllerProvider.overrideWithValue(controller),
+      lyricsProvider.overrideWith((ref, request) => null),
+    ],
     child: MaterialApp(
       theme: hoomyLightTheme(),
       home: PlaybackPage(controller: controller),

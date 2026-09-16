@@ -6,7 +6,7 @@ import 'hoomy_button.dart';
 
 /// 取数失败：给出可读原因与「重试」，不留下空白页。
 ///
-/// 列表页的 `AsyncView` 与播放页的歌词都用这一份，避免两处各写一套
+/// 列表页的 `AsyncValueView` 与播放页的歌词都用这一份，避免两处各写一套
 /// 「文案 + 重试按钮」的形状。「重试」用 [HoomyButton] 的描边态：
 /// 视觉与原来的 `OutlinedButton` 一致，TV 上聚焦时整块铺交互蓝、文字变白。
 class ErrorRetryView extends StatelessWidget {

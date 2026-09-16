@@ -5,11 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/core/theme/hoomy_theme.dart';
-import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/http/http_transport.dart';
-import 'package:hoomy/data/repositories/album_repository.dart';
-import 'package:hoomy/data/repositories/artist_repository.dart';
-import 'package:hoomy/data/repositories/repository_providers.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/features/albums/albums_page.dart';
 import 'package:hoomy/features/artists/artists_page.dart';
@@ -103,13 +99,14 @@ void main() {
   });
 
   testWidgets('深色下封面占位用较高表面，不出现白块', (tester) async {
-    await tester.pumpWidget(ProviderScope(
-      overrides: [subsonicClientProvider.overrideWithValue(null)],
-      child: MaterialApp(
+    // 没有封面 id 就没有可取的图：占位照常呈现（ADR-0015：这不是「没有会话」
+    // 的第二种形态，而是曲目自身没有封面）。
+    await tester.pumpWidget(
+      MaterialApp(
         theme: hoomyDarkTheme(),
-        home: const Scaffold(body: CoverArt(coverArtId: 'c1')),
+        home: const Scaffold(body: CoverArt(coverArtId: null)),
       ),
-    ));
+    );
 
     final placeholder = tester.widget<Container>(find.byType(Container));
     expect(placeholder.color, HoomyColors.darkSurfaceRaised);
@@ -131,11 +128,7 @@ void main() {
 
     await tester.pumpWidget(harness(
       const ArtistsPage(),
-      [
-        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
-        subsonicClientProvider.overrideWithValue(null),
-        artistRepositoryProvider.overrideWithValue(ArtistRepository(fakeClient(transport))),
-      ],
+      sessionOverrides(transport),
     ));
     await tester.pumpAndSettle();
 
@@ -162,11 +155,7 @@ void main() {
 
       await tester.pumpWidget(harness(
         const AlbumsPage(),
-        [
-          // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
-          subsonicClientProvider.overrideWithValue(null),
-          albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport))),
-        ],
+        sessionOverrides(transport),
       ));
       await tester.pumpAndSettle();
 

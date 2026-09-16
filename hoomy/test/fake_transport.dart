@@ -129,6 +129,20 @@ SubsonicClient fakeClient(
 /// 协议客户端与封面下载三条链路走的是同一条假传输（ADR-0015 决策 5）。
 Dio fakeDio(FakeTransport transport) => Dio()..httpClientAdapter = transport;
 
+/// 空曲库的假传输：五个 Tab 与歌词都取得到空结果，不触达真实网络。
+///
+/// 渲染整壳的用例（登录闸口、设置页、TV 外壳）用它：页面因此落在空态而不是
+/// 错误态。需要具体数据时在它之上再注册对应端点。
+FakeTransport emptyLibraryTransport() => FakeTransport()
+  ..ok('search3.view')
+  ..ok('getAlbumList2.view')
+  ..ok('getArtists.view')
+  ..ok('getPlaylists.view')
+  ..ok('getGenres.view')
+  ..ok('getStarred2.view')
+  ..ok('getLyricsBySongId.view')
+  ..ok('getLyrics.view');
+
 /// 会话注入点的测试形态：**真会话 + 假传输**（ADR-0015 测试决策）。
 ///
 /// 会话内部的分页、解析与地址拼接都是真的，只有 HTTP 被替换掉；渲染类用例

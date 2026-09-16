@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -55,7 +57,8 @@ void main() {
         child: const HoomyApp(),
       );
 
-  /// 闸口级测试台：直接把 [LoginGate] 当根部件挂。
+  /// 闸口级测试台：直接把 [LoginGate] 当根部件挂，会话作用域与生产同形
+  /// （在 Navigator 之上，即 `HoomyApp.builder` 的位置）。
   ///
   /// 专门用于「重建」用例：`HoomyApp` 里的 `home: const LoginGate()` 是常量
   /// 实例，父级重建会被 Flutter 直接跳过，验不到闸口自己的重建。
@@ -66,7 +69,11 @@ void main() {
         ],
         child: HoomyFormFactorScope(
           formFactor: HoomyFormFactor.phone,
-          child: MaterialApp(home: LoginGate()),
+          child: MaterialApp(
+            builder: (context, child) =>
+                SessionScope(child: child ?? const SizedBox.shrink()),
+            home: const LoginGate(),
+          ),
         ),
       );
 
@@ -161,5 +168,93 @@ void main() {
       greaterThan(before),
       reason: '新会话要重新取数',
     );
+  });
+
+  testWidgets('登出是路由事件：压在主界面之上的层级路由被一并清掉', (tester) async {
+    setLoggedIn();
+
+    await tester.pumpWidget(app(transportWithSong()));
+    await tester.pumpAndSettle();
+
+    // 先取到容器与导航器：层级路由压上去之后，下面的路由会被 Overlay 标记为
+    // offstage，`find.byType` 默认跳过它。
+    final root = ProviderScope.containerOf(
+      tester.element(find.byType(LoginGate)),
+      listen: false,
+    );
+    final navigator = Navigator.of(tester.element(find.byType(SongsPage)));
+
+    // 往主界面之上压一层层级路由（设置页之类的详情页）。
+    // 刻意不 await `push`：它的 Future 要等路由被弹出才完成。
+    unawaited(
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('压在上面的层级页')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('压在上面的层级页'), findsOneWidget);
+
+    // 清凭据即让会话消失；路由自己订阅会话状态，不靠调用点记得弹栈。清凭据要走
+    // 平台通道，放在 runAsync 的真实时钟下才回得来。
+    await tester.runAsync(() => root.read(authProvider.notifier).logout());
+    await tester.pumpAndSettle();
+
+    expect(find.text('压在上面的层级页'), findsNothing, reason: '登出必须重置导航栈');
+    expect(find.text('连接 Navidrome'), findsOneWidget, reason: '回到登录页');
+  });
+
+  /// 票据 03 的回归：会话作用域必须包住 **Navigator**。
+  ///
+  /// 闸口 push 出去的详情页在 Overlay 上是 home 路由的兄弟；作用域若只包 home，
+  /// 这些页面读 `sessionProvider` 会落到根作用域上抛「会话未注入」。这条用例走
+  /// 的还是真 `HoomyApp`（闸口 + 作用域），因此能挡住那类「测试全在根作用域
+  /// 注入会话」造成的假绿。
+  testWidgets('push 出来的层级页读得到会话，且收藏写也走同一条作用域', (tester) async {
+    setLoggedIn();
+    final transport = FakeTransport()
+      ..ok('search3.view')
+      ..ok('star.view')
+      ..ok('getAlbumList2.view', {
+        'albumList2': {
+          'album': [
+            {'id': 'al1', 'name': '叶惠美', 'artist': '周杰伦'},
+          ],
+        },
+      })
+      ..ok('getAlbum.view', {
+        'album': {
+          'id': 'al1',
+          'name': '叶惠美',
+          'artist': '周杰伦',
+          'song': [
+            {'id': 's1', 'title': '晴天'},
+          ],
+        },
+      })
+      ..ok('getArtists.view')
+      ..ok('getPlaylists.view')
+      ..ok('getGenres.view')
+      ..ok('getStarred2.view');
+
+    await tester.pumpWidget(app(transport));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('专辑'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('叶惠美'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('晴天'), findsOneWidget, reason: '层级页经会话取到了曲目');
+    expect(find.textContaining('会话未注入'), findsNothing);
+    expect(find.text('登录状态异常，请重试'), findsNothing);
+
+    // 收藏写在同一个作用域里：`starStoreProvider` 依赖会话，漏声明依赖同样会抛。
+    await tester.tap(find.byIcon(Icons.star_border).first);
+    await tester.pumpAndSettle();
+
+    expect(transport.lastEndpoint, 'star.view');
+    expect(transport.lastQuery['albumId'], 'al1');
   });
 }

@@ -11,19 +11,23 @@ import '../shell/home_shell.dart';
 import '../shell/tv_home_shell.dart';
 import 'login_page.dart';
 
-/// 登录闸口：决定「当前有没有会话」的唯一位置（ADR-0015 决策 2）。
+/// 会话的作用域：把**非空**会话交给主界面（ADR-0015 决策 2 的注入点）。
 ///
-/// 有会话就进主界面，没有就是登录页 —— 主界面之内不再有第二种形态。会话在这里
-/// 以**嵌套作用域**注入（[sessionProvider]），所以主界面之内它在类型上不可能为空，
-/// 页面不必再写「没有数据源就画空白」。
-class LoginGate extends ConsumerStatefulWidget {
-  const LoginGate({super.key});
+/// 它必须挂在 `MaterialApp` 的 `builder` 上（Navigator **之上**），不能只包住
+/// `home` 路由：闸口 push 出去的详情页、播放页在 Overlay 上是 home 路由的**兄弟**，
+/// 作用域只包 home 时它们读不到会话（票据 03 修正的缺陷）。
+///
+/// 没有凭据时不注入：登录页与「读取登录状态失败」都不需要会话。
+class SessionScope extends ConsumerStatefulWidget {
+  const SessionScope({super.key, required this.child});
+
+  final Widget child;
 
   @override
-  ConsumerState<LoginGate> createState() => _LoginGateState();
+  ConsumerState<SessionScope> createState() => _SessionScopeState();
 }
 
-class _LoginGateState extends ConsumerState<LoginGate> {
+class _SessionScopeState extends ConsumerState<SessionScope> {
   SubsonicCredentials? _credentials;
   Session? _session;
 
@@ -44,7 +48,41 @@ class _LoginGateState extends ConsumerState<LoginGate> {
 
   @override
   Widget build(BuildContext context) {
+    final credentials = ref.watch(authProvider).value;
+    if (credentials == null) return widget.child;
+    return ProviderScope(
+      overrides: [sessionProvider.overrideWithValue(_sessionFor(credentials))],
+      child: widget.child,
+    );
+  }
+}
+
+/// 登录闸口：决定「当前有没有会话」的唯一位置（ADR-0015 决策 2）。
+///
+/// 有会话就进主界面，没有就是登录页 —— 主界面之内不再有第二种形态。会话由
+/// [SessionScope] 在 Navigator 之上注入，所以主界面之内（含 push 出来的层级页）
+/// 它在类型上不可能为空，页面不必再写「没有数据源就画空白」。
+class LoginGate extends ConsumerStatefulWidget {
+  const LoginGate({super.key});
+
+  @override
+  ConsumerState<LoginGate> createState() => _LoginGateState();
+}
+
+class _LoginGateState extends ConsumerState<LoginGate> {
+  @override
+  Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
+    // 会话消失是**路由事件**（ADR-0015 决策 3）：路由在这里订阅会话状态，一旦从
+    // 「有会话」变成「没有会话」（登出或凭据失效），就重置导航栈回登录页 ——
+    // 压在主界面之上的层级路由（例如设置页）一并清掉，不再依赖调用点记得弹栈。
+    ref.listen(authProvider, (previous, next) {
+      final hadSession = previous?.value != null;
+      final hasSession = next.value != null;
+      if (hadSession && !hasSession) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    });
     return switch (auth) {
       AsyncLoading() => const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -59,28 +97,9 @@ class _LoginGateState extends ConsumerState<LoginGate> {
       ),
       _ => auth.value == null
           ? const LoginPage()
-          : _SessionScope(
-              session: _sessionFor(auth.value!),
-              child: HoomyFormFactorScope.isTv(context)
-                  ? const TvHomeShell()
-                  : const HomeShell(),
-            ),
+          : HoomyFormFactorScope.isTv(context)
+          ? const TvHomeShell()
+          : const HomeShell(),
     };
   }
-}
-
-/// 会话的注入点：用嵌套作用域把非空会话交给主界面。
-///
-/// 测试也在这里注入「真会话 + 假传输」（ADR-0015 测试决策）。
-class _SessionScope extends StatelessWidget {
-  const _SessionScope({required this.session, required this.child});
-
-  final Session session;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => ProviderScope(
-    overrides: [sessionProvider.overrideWithValue(session)],
-    child: child,
-  );
 }

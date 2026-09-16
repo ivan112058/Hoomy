@@ -5,76 +5,17 @@ import '../../core/platform/form_factor.dart';
 import 'error_retry_view.dart';
 import 'hoomy_icon_button.dart';
 
-/// 列表页通用的异步骨架：加载中 / 错误重试 / 空态。
-///
-/// [load] 只在首次构建与用户点「重试」时调用，不会因为父组件 rebuild 而重新取数。
-class AsyncView<T> extends StatefulWidget {
-  const AsyncView({
-    super.key,
-    required this.load,
-    required this.itemBuilder,
-    this.emptyMessage = '这里还没有内容',
-  });
-
-  final Future<T> Function() load;
-  final Widget Function(BuildContext, T) itemBuilder;
-  final String emptyMessage;
-
-  @override
-  State<AsyncView<T>> createState() => _AsyncViewState<T>();
-}
-
-class _AsyncViewState<T> extends State<AsyncView<T>> {
-  late Future<T> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = widget.load();
-  }
-
-  void _retry() {
-    final future = widget.load();
-    setState(() {
-      _future = future;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<T>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return ErrorRetryView(
-            message: describeError(snapshot.error!),
-            onRetry: _retry,
-          );
-        }
-        final data = snapshot.data;
-        if (data == null || (data is Iterable && data.isEmpty)) {
-          return Center(child: Text(widget.emptyMessage));
-        }
-        return widget.itemBuilder(context, data as T);
-      },
-    );
-  }
-}
-
 /// 把一个**异步值**画成载入／错误重试／空态／内容。
 ///
-/// 与 [AsyncView] 的分工：[AsyncView] 自己持有取数回调（future 在 `initState`
-/// 定住），适合「页面就是取数发起者」的旧形状；这里只订阅调用方给的异步值，
-/// 重试也只是让那个值重取一次 —— 取数身份与失效不落在页面里。
+/// 页面只订阅调用方给的异步值，重试也只是让那个值重取一次 —— 取数身份与失效
+/// 不落在页面里（ADR-0015 决策 4）。这是列表页三态呈现的**唯一**一份。
 class AsyncValueView<T> extends ConsumerWidget {
   const AsyncValueView({
     super.key,
     required this.provider,
     required this.itemBuilder,
     this.emptyMessage = '这里还没有内容',
+    this.isEmpty,
   });
 
   /// 要订阅的取数。传 provider（而不是裸异步值）是为了让「重试」也有归宿：
@@ -83,6 +24,10 @@ class AsyncValueView<T> extends ConsumerWidget {
 
   final Widget Function(BuildContext, T) itemBuilder;
   final String emptyMessage;
+
+  /// 数据非 `Iterable` 时的空态判据（如「播放列表没有曲目」）。
+  /// 默认只按 `Iterable.isEmpty` 判断。
+  final bool Function(T data)? isEmpty;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -93,12 +38,17 @@ class AsyncValueView<T> extends ConsumerWidget {
         onRetry: () => ref.invalidate(provider),
       ),
       data: (data) {
-        if (data is Iterable && data.isEmpty) {
+        if (_isEmpty(data)) {
           return Center(child: Text(emptyMessage));
         }
         return itemBuilder(context, data);
       },
     );
+  }
+
+  bool _isEmpty(T data) {
+    if (isEmpty case final predicate?) return predicate(data);
+    return data is Iterable && data.isEmpty;
   }
 }
 

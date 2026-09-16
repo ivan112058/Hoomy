@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/hoomy_theme.dart';
-import '../../data/repositories/artist_repository.dart';
-import '../../data/repositories/repository_providers.dart';
+import '../../data/session/session.dart';
+import '../../data/session/session_providers.dart';
 import '../../data/star/star_target.dart';
 import '../../data/subsonic/models.dart';
 import '../albums/album_detail_page.dart';
@@ -28,20 +27,18 @@ void openArtistDetail(BuildContext context, SubsonicArtist artist) {
 ///
 /// 专辑与歌曲在一个滚动页里分段呈现，不做参考项目的两个 Tab —— 票据只要求
 /// 「显示该歌手的专辑与全部歌曲」。
-class ArtistDetailPage extends ConsumerWidget {
+class ArtistDetailPage extends StatelessWidget {
   const ArtistDetailPage({super.key, required this.artist});
 
   /// 列表点进来的那个歌手：`id` 用来取详情，`name` 先撑住标题栏。
   final SubsonicArtist artist;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final artistRepository = ref.watch(artistRepositoryProvider);
-    if (artistRepository == null) return const SizedBox.shrink();
+  Widget build(BuildContext context) {
     return PageScaffold(
       title: artist.name,
-      body: AsyncView(
-        load: () => artistRepository.getArtistDetail(artist.id),
+      body: AsyncValueView(
+        provider: artistDetailProvider(artist.id),
         itemBuilder: (context, detail) => LayoutBuilder(
           builder: (context, constraints) => CustomScrollView(
             slivers: [

@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/auth/auth_controller.dart';
 import '../../data/cover/cover_cache_provider.dart';
+import '../../data/session/session_providers.dart';
 
 /// 经 getCoverArt 拉取的封面图（服务端已解析文件内嵌封面）。
 ///
@@ -29,14 +29,15 @@ class _CoverArtState extends ConsumerState<CoverArt> {
 
   @override
   Widget build(BuildContext context) {
-    final client = ref.watch(subsonicClientProvider);
-    final cache = ref.watch(coverCacheProvider);
+    // 没有封面 id 就没有可取的图：这是曲目的属性，不是「有没有会话」的第二形态，
+    // 所以先短路，再向会话要地址（ADR-0015：会话之上没有判空分支）。
     final id = widget.coverArtId;
-    if (client == null || id == null || id.isEmpty) {
-      return _placeholder(context);
-    }
+    if (id == null || id.isEmpty) return _placeholder(context);
 
-    final uri = client.coverArtUri(id, size: widget.size);
+    final session = ref.watch(sessionProvider);
+    final cache = ref.watch(coverCacheProvider);
+
+    final uri = session.coverArtUri(id, size: widget.size);
     if (cache == null) return _network(context, uri);
 
     final key = cache.cacheKey(id, size: widget.size);

@@ -2,15 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/core/theme/hoomy_theme.dart';
-import 'package:hoomy/data/auth/auth_controller.dart';
-import 'package:hoomy/data/repositories/album_repository.dart';
-import 'package:hoomy/data/repositories/artist_repository.dart';
-import 'package:hoomy/data/repositories/repository_providers.dart';
-import 'package:hoomy/data/repositories/star_repository.dart';
+import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/features/albums/albums_page.dart';
 import 'package:hoomy/features/artists/artists_page.dart';
@@ -26,8 +21,8 @@ import 'fake_transport.dart';
 /// 票据 12 的行为验收：收藏写路径的乐观更新、失败回滚与同目标互斥，以及
 /// 歌曲行／播放页／专辑／歌手四个入口与「我喜欢的歌曲」。
 ///
-/// 写请求全部打在 [FakeTransport] 上（S1 接缝），不对任何真实服务器调用
-/// `star`/`unstar`。
+/// 写请求全部打在 [FakeTransport] 上（S1 接缝，真会话 + 假传输），不对任何
+/// 真实服务器调用 `star`/`unstar`。
 void main() {
   Uri resolveUri(String id) =>
       Uri.parse('http://nas.local:4533/rest/stream.view?id=$id&format=raw');
@@ -45,19 +40,14 @@ void main() {
     starred: starred ? '2026-09-01T00:00:00Z' : null,
   );
 
-  /// 页面测试台：收藏仓库指向假传输，未登录态下不触达真实客户端。
+  /// 页面测试台：会话指向假传输，页面与收藏写都只经这一条接缝。
   Widget harness(
     Widget child, {
     required FakeTransport transport,
     PlaybackController? controller,
-    List<Override> overrides = const [],
   }) => ProviderScope(
     overrides: [
-      subsonicClientProvider.overrideWithValue(null),
-      starRepositoryProvider.overrideWithValue(
-        StarRepository(fakeClient(transport)),
-      ),
-      ...overrides,
+      sessionProvider.overrideWithValue(fakeSession(transport)),
       if (controller != null)
         playerControllerProvider.overrideWithValue(controller),
     ],
@@ -276,11 +266,6 @@ void main() {
         harness(
           const AlbumsPage(),
           transport: transport,
-          overrides: [
-            albumRepositoryProvider.overrideWithValue(
-              AlbumRepository(fakeClient(transport)),
-            ),
-          ],
         ),
       );
       await tester.pumpAndSettle();
@@ -313,11 +298,6 @@ void main() {
         harness(
           const ArtistsPage(),
           transport: transport,
-          overrides: [
-            artistRepositoryProvider.overrideWithValue(
-              ArtistRepository(fakeClient(transport)),
-            ),
-          ],
         ),
       );
       await tester.pumpAndSettle();
@@ -349,11 +329,6 @@ void main() {
         harness(
           const AlbumsPage(),
           transport: transport,
-          overrides: [
-            albumRepositoryProvider.overrideWithValue(
-              AlbumRepository(fakeClient(transport)),
-            ),
-          ],
         ),
       );
       await tester.pumpAndSettle();
@@ -386,11 +361,6 @@ void main() {
         harness(
           const ArtistsPage(),
           transport: transport,
-          overrides: [
-            artistRepositoryProvider.overrideWithValue(
-              ArtistRepository(fakeClient(transport)),
-            ),
-          ],
         ),
       );
       await tester.pumpAndSettle();

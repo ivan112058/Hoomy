@@ -1,16 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:hoomy/data/repositories/album_repository.dart';
-import 'package:hoomy/data/repositories/artist_repository.dart';
-import 'package:hoomy/data/repositories/genre_repository.dart';
-import 'package:hoomy/data/repositories/paged_fetch.dart';
-import 'package:hoomy/data/repositories/playlist_repository.dart';
-import 'package:hoomy/data/repositories/song_repository.dart';
+import 'package:hoomy/data/session/paged_fetch.dart';
+import 'package:hoomy/data/session/session.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/data/subsonic/subsonic_client.dart';
 
-/// 集成测试：对真实 Navidrome 只读端点验证 repository 取数。默认不参与 `flutter test`，
+/// 集成测试：对真实 Navidrome 只读端点验证**会话**取数。默认不参与 `flutter test`，
 /// 因为依赖局域网服务器。运行方式：
 ///
 /// ```
@@ -33,16 +29,16 @@ void main() {
 
   group('真实服务器集成（只读）', () {
     late SubsonicClient client;
+    late Session session;
 
     setUp(() {
-      client = SubsonicClient(
-        credentials: SubsonicCredentials(
-          serverUrl: server,
-          username: user,
-          password: pass,
-        ),
-        dio: Dio(),
+      final credentials = SubsonicCredentials(
+        serverUrl: server,
+        username: user,
+        password: pass,
       );
+      client = SubsonicClient(credentials: credentials, dio: Dio());
+      session = Session(credentials: credentials, transport: Dio());
     });
 
     test('ping 通过', () async {
@@ -50,7 +46,7 @@ void main() {
     }, skip: configured ? false : '需要 --dart-define 提供服务器地址与凭据');
 
     test('分页取回全库歌曲，条数与去重后一致，且确实翻过页', () async {
-      final songs = await SongRepository(client).getAllSongs();
+      final songs = await session.allSongs();
 
       expect(songs, isNotEmpty, reason: '曲库为空');
       expect(
@@ -63,24 +59,22 @@ void main() {
     }, skip: configured ? false : '未配置服务器');
 
     test('专辑列表非空，专辑详情带曲目列表', () async {
-      final albums = await AlbumRepository(client).getAllAlbums();
+      final albums = await session.allAlbums();
       expect(albums, isNotEmpty, reason: '专辑列表为空');
 
-      final detail = await AlbumRepository(client).getAlbum(albums.first.id);
+      final detail = await session.album(albums.first.id);
       expect(detail.songs, isNotEmpty, reason: '专辑详情没有曲目');
     }, skip: configured ? false : '未配置服务器');
 
     test('歌手列表非空；歌手详情带专辑，全部歌曲无重复', () async {
-      final artists = await ArtistRepository(client).getArtists();
+      final artists = await session.allArtists();
       expect(artists, isNotEmpty, reason: '歌手列表为空');
 
       final withAlbums = artists.firstWhere(
         (a) => (a.albumCount ?? 0) > 0,
         orElse: () => artists.first,
       );
-      final detail = await ArtistRepository(
-        client,
-      ).getArtistDetail(withAlbums.id);
+      final detail = await session.artistDetail(withAlbums.id);
       expect(detail.artist.albums, isNotEmpty, reason: '歌手详情没有专辑');
 
       final songs = detail.songs;
@@ -113,19 +107,19 @@ void main() {
     }, skip: configured ? false : '未配置服务器');
 
     test('播放列表列表非空，播放列表详情带曲目', () async {
-      final playlists = await PlaylistRepository(client).getPlaylists();
+      final playlists = await session.playlists();
       expect(playlists, isNotEmpty, reason: '实测服务器上有 2 个播放列表');
 
       final withSongs = playlists.firstWhere(
         (p) => (p.songCount ?? 0) > 0,
         orElse: () => playlists.first,
       );
-      final detail = await PlaylistRepository(client).getPlaylist(withSongs.id);
+      final detail = await session.playlist(withSongs.id);
       expect(detail.songs, isNotEmpty, reason: '播放列表详情没有取到曲目');
     }, skip: configured ? false : '未配置服务器');
 
     test('风格列表非空，该风格的曲目可整份取回', () async {
-      final genres = await GenreRepository(client).getGenres();
+      final genres = await session.genres();
       expect(genres, isNotEmpty, reason: '实测服务器上有 23 个风格');
       expect(genres.first.songCount, isNotNull);
 
@@ -133,7 +127,7 @@ void main() {
         (g) => (g.songCount ?? 0) > 0,
         orElse: () => genres.first,
       );
-      final songs = await GenreRepository(client).getSongs(withSongs.name);
+      final songs = await session.genreSongs(withSongs.name);
       expect(songs, isNotEmpty, reason: '风格下没有取到歌曲');
       expect(
         songs.map((s) => s.id).toSet().length,

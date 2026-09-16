@@ -6,20 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:hoomy/data/auth/auth_controller.dart';
-import 'package:hoomy/data/repositories/album_repository.dart';
-import 'package:hoomy/data/repositories/artist_repository.dart';
-import 'package:hoomy/data/repositories/repository_providers.dart';
 import 'package:hoomy/features/albums/albums_page.dart';
 import 'package:hoomy/features/artists/artists_page.dart';
 import 'package:hoomy/features/songs/songs_page.dart';
 
 import 'fake_transport.dart';
 
-/// 三个浏览页经取数层显示数据，以及失败时的可重试错误态。
+/// 三个浏览页经会话显示数据，以及失败时的可重试错误态。
 ///
-/// 歌曲页已改从会话取数（票据 02）：用例只注入「真会话 + 假传输」；专辑页与
-/// 歌手页仍走旧的 repository 接线（票据 03 迁移）。
+/// 用例只注入「真会话 + 假传输」（ADR-0015 测试决策）：会话及其取数逻辑是真的，
+/// 只有 HTTP 被替换掉；页面不再有「没有数据源」的空白分支。
 void main() {
   Widget harness(Widget page, List<Override> overrides) => ProviderScope(
         overrides: overrides,
@@ -115,7 +111,7 @@ void main() {
     });
   });
 
-  testWidgets('专辑页经 AlbumRepository 显示专辑', (tester) async {
+  testWidgets('专辑页从会话取数显示专辑', (tester) async {
     final transport = FakeTransport()
       ..ok('getAlbumList2.view', {
         'albumList2': {
@@ -128,11 +124,7 @@ void main() {
 
     await tester.pumpWidget(harness(
       const AlbumsPage(),
-      [
-        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
-        subsonicClientProvider.overrideWithValue(null),
-        albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport))),
-      ],
+      sessionOverrides(transport),
     ));
     await tester.pumpAndSettle();
 
@@ -140,7 +132,7 @@ void main() {
     expect(find.text('范特西'), findsOneWidget);
   });
 
-  testWidgets('歌手列表页经 ArtistRepository 显示歌手', (tester) async {
+  testWidgets('歌手列表页从会话取数显示歌手', (tester) async {
     final transport = FakeTransport()
       ..ok('getArtists.view', {
         'artists': {
@@ -157,11 +149,7 @@ void main() {
 
     await tester.pumpWidget(harness(
       const ArtistsPage(),
-      [
-        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
-        subsonicClientProvider.overrideWithValue(null),
-        artistRepositoryProvider.overrideWithValue(ArtistRepository(fakeClient(transport))),
-      ],
+      sessionOverrides(transport),
     ));
     await tester.pumpAndSettle();
 
