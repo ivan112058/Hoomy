@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderException;
 
 import '../../data/subsonic/subsonic_client.dart';
 import 'hoomy_button.dart';
@@ -44,5 +45,10 @@ class ErrorRetryView extends StatelessWidget {
 
 /// `SubsonicException` 已由协议层映射成可读文案，优先取它；
 /// 其它异常退化为 `toString()`，只在开发期遇到，用于定位。
-String describeError(Object error) =>
-    error is SubsonicException ? error.message : '$error';
+///
+/// Riverpod 会把 provider 抛出/失败的异常包一层 [ProviderException]，
+/// 这里拆掉包装，否则用户看到的是一整段栈信息。
+String describeError(Object error) {
+  if (error is ProviderException) return describeError(error.exception);
+  return error is SubsonicException ? error.message : '$error';
+}

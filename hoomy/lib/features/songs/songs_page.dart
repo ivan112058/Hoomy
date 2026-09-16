@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/alphabet/alphabet.dart';
-import '../../data/repositories/repository_providers.dart';
+import '../../data/session/session_providers.dart';
 import '../../data/subsonic/models.dart';
 import '../player/playback_listenable.dart';
 import '../shared/alphabet_sectioned_view.dart';
@@ -16,19 +16,19 @@ import 'song_search.dart';
 
 /// 歌曲 Tab：全库歌曲的分组列表 + 本地搜索。
 ///
-/// 曲库经 `SongRepository` 以 `search3` 空 query 分页取全量（ADR-0005），
-/// 不再有硬上限。响应不含总数，因此界面也不显示条数或页码。
+/// 曲库从**会话**取（ADR-0015 决策 1），以异步值订阅（[allSongsProvider]）；
+/// 页面不持有取数回调，也不再有「没有数据源就画空白」的分支 —— 载入、失败
+/// 重试与空态都由 [AsyncValueView] 呈现。分页规则仍在会话内部（ADR-0005），
+/// 响应不含总数，因此界面也不显示条数或页码。
 class SongsPage extends ConsumerWidget {
   const SongsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final songRepository = ref.watch(songRepositoryProvider);
-    if (songRepository == null) return const SizedBox.shrink();
     return PageScaffold(
       title: '歌曲',
-      body: AsyncView(
-        load: songRepository.getAllSongs,
+      body: AsyncValueView(
+        provider: allSongsProvider,
         emptyMessage: '曲库是空的',
         itemBuilder: (context, songs) => _SongsBody(songs: songs),
       ),

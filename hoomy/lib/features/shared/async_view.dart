@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/platform/form_factor.dart';
 import 'error_retry_view.dart';
@@ -58,6 +59,44 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
           return Center(child: Text(widget.emptyMessage));
         }
         return widget.itemBuilder(context, data as T);
+      },
+    );
+  }
+}
+
+/// 把一个**异步值**画成载入／错误重试／空态／内容。
+///
+/// 与 [AsyncView] 的分工：[AsyncView] 自己持有取数回调（future 在 `initState`
+/// 定住），适合「页面就是取数发起者」的旧形状；这里只订阅调用方给的异步值，
+/// 重试也只是让那个值重取一次 —— 取数身份与失效不落在页面里。
+class AsyncValueView<T> extends ConsumerWidget {
+  const AsyncValueView({
+    super.key,
+    required this.provider,
+    required this.itemBuilder,
+    this.emptyMessage = '这里还没有内容',
+  });
+
+  /// 要订阅的取数。传 provider（而不是裸异步值）是为了让「重试」也有归宿：
+  /// 失效发生在模块边界上，页面只说它要什么数据。
+  final FutureProvider<T> provider;
+
+  final Widget Function(BuildContext, T) itemBuilder;
+  final String emptyMessage;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ref.watch(provider).when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => ErrorRetryView(
+        message: describeError(error),
+        onRetry: () => ref.invalidate(provider),
+      ),
+      data: (data) {
+        if (data is Iterable && data.isEmpty) {
+          return Center(child: Text(emptyMessage));
+        }
+        return itemBuilder(context, data);
       },
     );
   }

@@ -3,13 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/platform/form_factor.dart';
 import 'core/theme/hoomy_theme.dart';
-import 'data/auth/auth_controller.dart';
 import 'data/cover/cover_cache_provider.dart';
 import 'data/http/http_transport.dart';
 import 'data/settings/theme_mode_controller.dart';
-import 'features/auth/login_page.dart';
-import 'features/shell/home_shell.dart';
-import 'features/shell/tv_home_shell.dart';
+import 'features/auth/login_gate.dart';
 import 'player/hoomy_audio_handler.dart';
 import 'player/player_providers.dart';
 
@@ -84,35 +81,7 @@ class HoomyApp extends ConsumerWidget {
               : content,
         );
       },
-      home: const _RootRouter(),
+      home: const LoginGate(),
     );
-  }
-}
-
-/// 根路由：按登录态与平台形态决定显示登录页、手机外壳还是 TV 外壳。
-class _RootRouter extends ConsumerWidget {
-  const _RootRouter();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authProvider);
-    return switch (auth) {
-      AsyncLoading() => const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
-      AsyncError(:final error) => Scaffold(
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text('读取登录状态失败：$error', textAlign: TextAlign.center),
-            ),
-          ),
-        ),
-      _ => auth.value == null
-          ? const LoginPage()
-          : HoomyFormFactorScope.isTv(context)
-          ? const TvHomeShell()
-          : const HomeShell(),
-    };
   }
 }

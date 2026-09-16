@@ -6,6 +6,7 @@ import '../player/mini_player_bar.dart';
 import '../player/playback_error_banner.dart';
 import '../shared/hoomy_focusable.dart';
 import 'hoomy_destinations.dart';
+import 'session_guard.dart';
 import 'shell_actions.dart';
 
 /// 侧边导航栏宽度：纵向图标 + 文字，10-foot 距离下读得清。
@@ -55,12 +56,14 @@ class _TvHomeShellState extends ConsumerState<TvHomeShell> {
             child: Column(
               children: [
                 Expanded(
-                  child: IndexedStack(
-                    index: _index,
-                    children: [
-                      for (final destination in kHoomyDestinations)
-                        destination.page,
-                    ],
+                  child: SessionGuard(
+                    child: IndexedStack(
+                      index: _index,
+                      children: [
+                        for (final destination in kHoomyDestinations)
+                          destination.page,
+                      ],
+                    ),
                   ),
                 ),
                 // 迷你播放条与错误提示固定在内容区底部：任何页面都能看到正在

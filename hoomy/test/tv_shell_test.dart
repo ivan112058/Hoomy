@@ -10,6 +10,8 @@ import 'package:hoomy/core/alphabet/alphabet.dart';
 import 'package:hoomy/core/platform/form_factor.dart';
 import 'package:hoomy/core/theme/hoomy_theme.dart';
 import 'package:hoomy/data/auth/auth_controller.dart';
+import 'package:hoomy/data/http/http_transport.dart';
+import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/features/player/mini_player_bar.dart';
 import 'package:hoomy/features/player/playback_page.dart';
@@ -25,14 +27,19 @@ import 'package:hoomy/player/playback_controller.dart';
 import 'package:hoomy/player/player_providers.dart';
 
 import 'fake_player_engine.dart';
+import 'fake_transport.dart';
 
 /// 票据 16 的外壳与 TV 形态验收：Android 走侧边导航栏、iOS 走底部 Tab、
 /// TV 上隐藏 A–Z 快捷栏、播放页与迷你条可被遥控器操作。
 void main() {
   /// 以指定形态包一层，模拟 `HoomyApp` 在 TV 上注入的那份环境。
+  ///
+  /// 外壳之下会话必不为空（票据 02）：这里注入「真会话 + 假传输」。协议客户端
+  /// 置空是其余页面仍走旧接线（票据 03 迁移），与歌曲页无关。
   Widget harness(Widget home, {HoomyFormFactor formFactor = HoomyFormFactor.tv, List<Override> overrides = const []}) =>
       ProviderScope(
         overrides: [
+          sessionProvider.overrideWithValue(fakeSession(FakeTransport())),
           subsonicClientProvider.overrideWithValue(null),
           ...overrides,
         ],
@@ -71,34 +78,37 @@ void main() {
     });
   }
 
+  /// 应用级测试台：凭据在安全存储里，传输是假的 —— 闸口起的会话不发真请求；
+  /// 播放引擎置空，widget 测试里不构造平台插件。
+  Widget app() => ProviderScope(
+        overrides: [
+          httpTransportProvider.overrideWithValue(
+            fakeDio(FakeTransport()..ok('search3.view')),
+          ),
+          playerEngineProvider.overrideWithValue(null),
+        ],
+        child: const HoomyApp(),
+      );
+
   group('根路由按平台分叉外壳', () {
     testWidgets('Android：进入侧边导航外壳，不出现底部 Tab', (tester) async {
       await asAndroid(() async {
         setLoggedIn();
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [subsonicClientProvider.overrideWithValue(null)],
-            child: const HoomyApp(),
-          ),
-        );
+        await tester.pumpWidget(app());
         await tester.pumpAndSettle();
 
         expect(find.byType(TvHomeShell), findsOneWidget);
         expect(find.byType(NavigationBar), findsNothing);
         for (final label in ['播放列表', '艺术家', '专辑', '歌曲', '更多']) {
-          expect(find.text(label), findsOneWidget, reason: '侧边导航缺少 $label');
+          // 「歌曲」既是导航项也是页面标题，因此只要求至少出现一次。
+          expect(find.text(label), findsWidgets, reason: '侧边导航缺少 $label');
         }
       });
     });
 
     testWidgets('手机（默认宿主平台）：进入底部 Tab 外壳', (tester) async {
       setLoggedIn();
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [subsonicClientProvider.overrideWithValue(null)],
-          child: const HoomyApp(),
-        ),
-      );
+      await tester.pumpWidget(app());
       await tester.pumpAndSettle();
 
       expect(find.byType(HomeShell), findsOneWidget);
@@ -133,7 +143,8 @@ void main() {
       await tester.pumpWidget(harness(const TvHomeShell()));
       await tester.pumpAndSettle();
 
-      final label = tester.widget<Text>(find.text('歌曲'));
+      // 导航栏里的那一份：页面标题也叫「歌曲」，导航栏在树里排在内容区之前。
+      final label = tester.widget<Text>(find.text('歌曲').first);
       expect(label.style?.fontSize, HoomyDimens.listSubtitleFontSize);
     });
 
@@ -150,7 +161,8 @@ void main() {
 
       // 溢出会以 FlutterError 让用例失败；这里同时确认导航项都还在。
       for (final label in ['播放列表', '艺术家', '专辑', '歌曲', '更多']) {
-        expect(find.text(label), findsOneWidget);
+        // 「歌曲」既是导航项也是页面标题。
+        expect(find.text(label), findsWidgets);
       }
     });
 
@@ -323,6 +335,52 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.select);
       await tester.pumpAndSettle();
       expect(opened, 1);
+    });
+  });
+
+  group('外壳的统一兜底（票据 02）', () {
+    testWidgets('会话已注入时兜底不出现，页面照常挂载', (tester) async {
+      await tester.pumpWidget(harness(const HomeShell()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('登录状态异常，请重试'), findsNothing);
+      expect(find.byType(IndexedStack), findsOneWidget);
+    });
+
+    testWidgets('不变量被破坏（会话未注入）时才出现，且不再挂页面', (tester) async {
+      // 刻意绕过登录闸口直接挂外壳：会话无从注入，落到兜底。
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(theme: hoomyLightTheme(), home: const HomeShell()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('登录状态异常，请重试'), findsOneWidget);
+      expect(
+        find.byType(IndexedStack),
+        findsNothing,
+        reason: '不变量破了就不该再挂页面数据',
+      );
+    });
+
+    testWidgets('TV 外壳同样有一层兜底，且导航 chrome 仍在', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: HoomyFormFactorScope(
+            formFactor: HoomyFormFactor.tv,
+            child: MaterialApp(
+              theme: hoomyLightTheme(),
+              home: const TvHomeShell(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('登录状态异常，请重试'), findsOneWidget);
+      // 兜底只替换内容区，一级导航仍然可用。
+      expect(find.text('歌曲'), findsOneWidget);
     });
   });
 }

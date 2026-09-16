@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:hoomy/core/theme/hoomy_theme.dart';
 import 'package:hoomy/data/auth/auth_controller.dart';
-import 'package:hoomy/data/repositories/repository_providers.dart';
-import 'package:hoomy/data/repositories/song_repository.dart';
+import 'package:hoomy/data/session/session.dart';
+import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/features/player/mini_player_bar.dart';
 import 'package:hoomy/features/player/playback_error_banner.dart';
@@ -50,24 +50,8 @@ void main() {
     ),
   ];
 
-  /// 歌曲列表 + 迷你播放条，与 [HomeShell] 的形态一致。
-  Widget harness(List<Override> overrides) => ProviderScope(
-    overrides: [subsonicClientProvider.overrideWithValue(null), ...overrides],
-    child: MaterialApp(
-      theme: hoomyLightTheme(),
-      home: const Scaffold(
-        body: SongsPage(),
-        // 与 HomeShell 一致：错误提示条在迷你播放条之上，两者都在导航栏之上。
-        bottomNavigationBar: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [PlaybackErrorBanner(), MiniPlayerBar()],
-        ),
-      ),
-    ),
-  );
-
-  /// 固定曲库响应的假传输 → 真实 `SongRepository`。
-  SongRepository fakeRepository() {
+  /// 固定曲库响应的假传输 → 真会话（歌曲页的唯一数据入口）。
+  Session fakeSongsSession() {
     final transport = FakeTransport()
       ..ok('search3.view', {
         'searchResult3': {
@@ -83,14 +67,36 @@ void main() {
           ],
         },
       });
-    return SongRepository(fakeClient(transport));
+    return fakeSession(transport);
   }
+
+  /// 歌曲列表 + 迷你播放条，与 [HomeShell] 的形态一致。
+  ///
+  /// 曲库只注入会话（票据 02）—— 歌曲页已不再读协议客户端；播放控制器由各
+  /// 用例用假引擎驱动。封面在无客户端时走占位图，与本文件的断言无关。
+  Widget harness(List<Override> overrides) => ProviderScope(
+    overrides: [
+      sessionProvider.overrideWithValue(fakeSongsSession()),
+      ...overrides,
+    ],
+    child: MaterialApp(
+      theme: hoomyLightTheme(),
+      home: const Scaffold(
+        body: SongsPage(),
+        // 与 HomeShell 一致：错误提示条在迷你播放条之上，两者都在导航栏之上。
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [PlaybackErrorBanner(), MiniPlayerBar()],
+        ),
+      ),
+    ),
+  );
 
   /// 主壳（真实 [HomeShell]）+ 假传输的曲库，用于验证迷你条的挂载位置。
   Widget shell(List<Override> overrides) => ProviderScope(
     overrides: [
+      sessionProvider.overrideWithValue(fakeSongsSession()),
       subsonicClientProvider.overrideWithValue(fakeClient(FakeTransport())),
-      songRepositoryProvider.overrideWithValue(fakeRepository()),
       ...overrides,
     ],
     child: MaterialApp(theme: hoomyLightTheme(), home: const HomeShell()),
@@ -108,7 +114,6 @@ void main() {
 
     await tester.pumpWidget(
       harness([
-        songRepositoryProvider.overrideWithValue(fakeRepository()),
         playerControllerProvider.overrideWithValue(controller),
       ]),
     );
@@ -162,7 +167,6 @@ void main() {
 
     await tester.pumpWidget(
       harness([
-        songRepositoryProvider.overrideWithValue(fakeRepository()),
         playerControllerProvider.overrideWithValue(controller),
       ]),
     );
@@ -192,7 +196,6 @@ void main() {
 
     await tester.pumpWidget(
       harness([
-        songRepositoryProvider.overrideWithValue(fakeRepository()),
         playerControllerProvider.overrideWithValue(controller),
       ]),
     );
@@ -290,8 +293,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          sessionProvider.overrideWithValue(fakeSongsSession()),
           subsonicClientProvider.overrideWithValue(fakeClient(FakeTransport())),
-          songRepositoryProvider.overrideWithValue(fakeRepository()),
           playerEngineProvider.overrideWithValue(engine),
           queueStoreProvider.overrideWithValue(store),
         ],

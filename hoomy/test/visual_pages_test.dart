@@ -6,10 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/core/theme/hoomy_theme.dart';
 import 'package:hoomy/data/auth/auth_controller.dart';
+import 'package:hoomy/data/http/http_transport.dart';
 import 'package:hoomy/data/repositories/album_repository.dart';
 import 'package:hoomy/data/repositories/artist_repository.dart';
 import 'package:hoomy/data/repositories/repository_providers.dart';
-import 'package:hoomy/data/repositories/song_repository.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/features/albums/albums_page.dart';
 import 'package:hoomy/features/artists/artists_page.dart';
@@ -18,6 +18,7 @@ import 'package:hoomy/features/shared/hoomy_list_row.dart';
 import 'package:hoomy/features/shared/song_tile.dart';
 import 'package:hoomy/features/songs/songs_page.dart';
 import 'package:hoomy/main.dart';
+import 'package:hoomy/player/player_providers.dart';
 
 import 'fake_transport.dart';
 
@@ -25,10 +26,7 @@ import 'fake_transport.dart';
 /// 专辑网格固定 3 列、歌曲副标题为「歌手 - 专辑」且不带封面缩略图。
 void main() {
   Widget harness(Widget page, List<Override> overrides) => ProviderScope(
-        overrides: [
-          subsonicClientProvider.overrideWithValue(null),
-          ...overrides,
-        ],
+        overrides: overrides,
         child: MaterialApp(theme: hoomyLightTheme(), home: page),
       );
 
@@ -88,7 +86,7 @@ void main() {
 
     await tester.pumpWidget(harness(
       const SongsPage(),
-      [songRepositoryProvider.overrideWithValue(SongRepository(fakeClient(transport)))],
+      sessionOverrides(transport),
     ));
     await tester.pumpAndSettle();
 
@@ -133,7 +131,11 @@ void main() {
 
     await tester.pumpWidget(harness(
       const ArtistsPage(),
-      [artistRepositoryProvider.overrideWithValue(ArtistRepository(fakeClient(transport)))],
+      [
+        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
+        subsonicClientProvider.overrideWithValue(null),
+        artistRepositoryProvider.overrideWithValue(ArtistRepository(fakeClient(transport))),
+      ],
     ));
     await tester.pumpAndSettle();
 
@@ -160,7 +162,11 @@ void main() {
 
       await tester.pumpWidget(harness(
         const AlbumsPage(),
-        [albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport)))],
+        [
+          // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
+          subsonicClientProvider.overrideWithValue(null),
+          albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport))),
+        ],
       ));
       await tester.pumpAndSettle();
 
@@ -183,9 +189,14 @@ void main() {
           '{"serverUrl":"http://localhost:4533","username":"u","password":"p"}',
     });
 
+    // 整条应用链：凭据在安全存储里，传输是假的，因此登录闸口到页面都不发真请求。
+    final transport = FakeTransport()..ok('search3.view');
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [subsonicClientProvider.overrideWithValue(null)],
+        overrides: [
+          httpTransportProvider.overrideWithValue(fakeDio(transport)),
+          playerEngineProvider.overrideWithValue(null),
+        ],
         child: const HoomyApp(),
       ),
     );

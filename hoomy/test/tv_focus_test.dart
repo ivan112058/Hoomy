@@ -7,9 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/core/platform/form_factor.dart';
 import 'package:hoomy/core/theme/hoomy_theme.dart';
-import 'package:hoomy/data/auth/auth_controller.dart';
-import 'package:hoomy/data/repositories/repository_providers.dart';
-import 'package:hoomy/data/repositories/song_repository.dart';
+import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/features/auth/login_page.dart';
 import 'package:hoomy/features/player/queue_overlay.dart';
@@ -394,7 +392,6 @@ void main() {
             ],
           },
         });
-      final client = fakeClient(transport);
       final engine = FakePlayerEngine();
       final controller = PlaybackController(
         engine: engine,
@@ -406,8 +403,8 @@ void main() {
         tvHarness(
           const SongsPage(),
           overrides: [
-            subsonicClientProvider.overrideWithValue(client),
-            songRepositoryProvider.overrideWithValue(SongRepository(client)),
+            // 曲库只来自会话（票据 02）；播放控制器用假引擎驱动。
+            sessionProvider.overrideWithValue(fakeSession(transport)),
             playerControllerProvider.overrideWithValue(controller),
           ],
         ),

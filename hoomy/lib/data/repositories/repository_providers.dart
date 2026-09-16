@@ -7,18 +7,15 @@ import 'artist_repository.dart';
 import 'genre_repository.dart';
 import 'lyrics_repository.dart';
 import 'playlist_repository.dart';
-import 'song_repository.dart';
 import 'star_repository.dart';
 
 /// repository 的接线处：全部由当前登录用户的协议客户端派生，未登录时为 null。
 ///
 /// 页面只依赖这些 provider，不再直接持有协议客户端。仓库类本身不依赖
 /// Riverpod，测试可注入假传输构造真实仓库。
-
-final songRepositoryProvider = Provider<SongRepository?>((ref) {
-  final client = ref.watch(subsonicClientProvider);
-  return client == null ? null : SongRepository(client);
-});
+///
+/// **正在收缩**：歌曲页已改从会话取数（票据 02），其余页面随票据 03 迁移；
+/// 到那时这一层连同 `subsonicClientProvider` 一并消失。
 
 final albumRepositoryProvider = Provider<AlbumRepository?>((ref) {
   final client = ref.watch(subsonicClientProvider);

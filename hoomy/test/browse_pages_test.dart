@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,26 +10,24 @@ import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/repositories/album_repository.dart';
 import 'package:hoomy/data/repositories/artist_repository.dart';
 import 'package:hoomy/data/repositories/repository_providers.dart';
-import 'package:hoomy/data/repositories/song_repository.dart';
 import 'package:hoomy/features/albums/albums_page.dart';
 import 'package:hoomy/features/artists/artists_page.dart';
 import 'package:hoomy/features/songs/songs_page.dart';
 
 import 'fake_transport.dart';
 
-/// 三个浏览页经 repository 取数，以及失败时的可重试错误态。
+/// 三个浏览页经取数层显示数据，以及失败时的可重试错误态。
+///
+/// 歌曲页已改从会话取数（票据 02）：用例只注入「真会话 + 假传输」；专辑页与
+/// 歌手页仍走旧的 repository 接线（票据 03 迁移）。
 void main() {
   Widget harness(Widget page, List<Override> overrides) => ProviderScope(
-        overrides: [
-          // 页面不再直接持有协议客户端；封面等媒体 URL 未涉及本测试。
-          subsonicClientProvider.overrideWithValue(null),
-          ...overrides,
-        ],
+        overrides: overrides,
         child: MaterialApp(home: page),
       );
 
   group('歌曲页', () {
-    testWidgets('经 SongRepository 显示歌曲，且不显示总数或页码', (tester) async {
+    testWidgets('从会话取数显示歌曲，且不显示总数或页码', (tester) async {
       final transport = FakeTransport()
         ..ok('search3.view', {
           'searchResult3': {
@@ -40,7 +40,7 @@ void main() {
 
       await tester.pumpWidget(harness(
         const SongsPage(),
-        [songRepositoryProvider.overrideWithValue(SongRepository(fakeClient(transport)))],
+        sessionOverrides(transport),
       ));
       await tester.pumpAndSettle();
 
@@ -53,7 +53,7 @@ void main() {
     });
 
     testWidgets('取数失败显示可重试错误态，重试后恢复', (tester) async {
-      // 同一仓库的第一次取数失败、第二次成功，验证「重试」真的重新取数。
+      // 同一条假传输第一次失败、第二次成功，验证「重试」真的重新取数。
       final transport = FakeTransport();
       var calls = 0;
       transport.responder = (options) {
@@ -75,11 +75,10 @@ void main() {
           },
         });
       };
-      final repository = SongRepository(fakeClient(transport));
 
       await tester.pumpWidget(harness(
         const SongsPage(),
-        [songRepositoryProvider.overrideWithValue(repository)],
+        sessionOverrides(transport),
       ));
       await tester.pumpAndSettle();
 
@@ -93,6 +92,26 @@ void main() {
       expect(calls, 2);
       expect(find.text('晴天'), findsOneWidget);
       expect(find.text('重试'), findsNothing);
+    });
+
+    testWidgets('取数在途时显示载入态', (tester) async {
+      final transport = FakeTransport()..ok('search3.view');
+      final gate = Completer<void>();
+      transport.gate = gate.future;
+
+      await tester.pumpWidget(harness(
+        const SongsPage(),
+        sessionOverrides(transport),
+      ));
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('曲库是空的'), findsNothing);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
     });
   });
 
@@ -109,7 +128,11 @@ void main() {
 
     await tester.pumpWidget(harness(
       const AlbumsPage(),
-      [albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport)))],
+      [
+        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
+        subsonicClientProvider.overrideWithValue(null),
+        albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport))),
+      ],
     ));
     await tester.pumpAndSettle();
 
@@ -134,7 +157,11 @@ void main() {
 
     await tester.pumpWidget(harness(
       const ArtistsPage(),
-      [artistRepositoryProvider.overrideWithValue(ArtistRepository(fakeClient(transport)))],
+      [
+        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
+        subsonicClientProvider.overrideWithValue(null),
+        artistRepositoryProvider.overrideWithValue(ArtistRepository(fakeClient(transport))),
+      ],
     ));
     await tester.pumpAndSettle();
 
@@ -147,7 +174,7 @@ void main() {
 
     await tester.pumpWidget(harness(
       const SongsPage(),
-      [songRepositoryProvider.overrideWithValue(SongRepository(fakeClient(transport)))],
+      sessionOverrides(transport),
     ));
     await tester.pumpAndSettle();
 

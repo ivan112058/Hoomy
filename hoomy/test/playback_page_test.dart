@@ -6,8 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/core/theme/hoomy_theme.dart';
 import 'package:hoomy/data/auth/auth_controller.dart';
-import 'package:hoomy/data/repositories/repository_providers.dart';
-import 'package:hoomy/data/repositories/song_repository.dart';
+import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/features/player/mini_player_bar.dart';
 import 'package:hoomy/features/player/playback_controls.dart';
@@ -113,8 +112,9 @@ void main() {
     final client = fakeClient(transport);
     return ProviderScope(
       overrides: [
+        // 曲库只来自会话（票据 02）；协议客户端仍供播放层与封面使用。
+        sessionProvider.overrideWithValue(fakeSession(transport)),
         subsonicClientProvider.overrideWithValue(client),
-        songRepositoryProvider.overrideWithValue(SongRepository(client)),
         playerControllerProvider.overrideWithValue(controller),
       ],
       child: MaterialApp(theme: hoomyLightTheme(), home: const HomeShell()),

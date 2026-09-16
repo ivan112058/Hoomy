@@ -37,6 +37,19 @@ class SubsonicCredentials {
   final String serverUrl;
   final String username;
   final String password;
+
+  /// 按值判等：凭据是「哪台服务器、哪个用户、哪份密码」的标识。重新读一次安全
+  /// 存储会得到新实例，但那仍是同一份凭据 —— 登录闸口据此决定要不要重建会话。
+  /// 密码也算数：认证 token 由它派生，密码变了必须换一个协议客户端。
+  @override
+  bool operator ==(Object other) =>
+      other is SubsonicCredentials &&
+      other.serverUrl == serverUrl &&
+      other.username == username &&
+      other.password == password;
+
+  @override
+  int get hashCode => Object.hash(serverUrl, username, password);
 }
 
 /// Subsonic 协议层错误（服务端在 200 响应里返回的 error）。

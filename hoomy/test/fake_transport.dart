@@ -3,8 +3,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 
+import 'package:hoomy/data/session/session.dart';
+import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/subsonic/subsonic_client.dart';
+import 'package:hoomy/player/player_providers.dart';
 
 /// S1 接缝（HTTP 传输）的测试基座：把 Dio 的 adapter 换成固定响应，
 /// 于是「认证参数 → 请求组装 → 信封解包 → 领域模型」整条链路都能在无网络下验证。
@@ -114,11 +118,31 @@ SubsonicClient fakeClient(
   SubsonicCredentials credentials = testCredentials,
   String clientName = 'hoomy',
 }) {
-  final dio = Dio();
-  dio.httpClientAdapter = transport;
   return SubsonicClient(
     credentials: credentials,
-    dio: dio,
+    dio: fakeDio(transport),
     clientName: clientName,
   );
 }
+
+/// 装了假 adapter 的 `Dio`：override 给 `httpTransportProvider`，于是登录校验、
+/// 协议客户端与封面下载三条链路走的是同一条假传输（ADR-0015 决策 5）。
+Dio fakeDio(FakeTransport transport) => Dio()..httpClientAdapter = transport;
+
+/// 会话注入点的测试形态：**真会话 + 假传输**（ADR-0015 测试决策）。
+///
+/// 会话内部的分页、解析与地址拼接都是真的，只有 HTTP 被替换掉；渲染类用例
+/// （视觉、布局、TV 焦点）override `sessionProvider` 时用它。
+Session fakeSession(FakeTransport transport) => Session(
+  credentials: testCredentials,
+  transport: fakeDio(transport),
+);
+
+/// 直接挂页面的渲染类用例的接线（票据 02 起）：只注入会话。
+///
+/// 播放控制器一并置空：播放层仍走旧接线（票据 04 解耦），widget 测试里不该
+/// 因此去构造 `just_audio` 的平台插件；用例要验播放时自行 override 它。
+List<Override> sessionOverrides(FakeTransport transport) => [
+  sessionProvider.overrideWithValue(fakeSession(transport)),
+  playerControllerProvider.overrideWithValue(null),
+];

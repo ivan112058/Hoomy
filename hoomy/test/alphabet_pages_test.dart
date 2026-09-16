@@ -7,7 +7,6 @@ import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/repositories/album_repository.dart';
 import 'package:hoomy/data/repositories/artist_repository.dart';
 import 'package:hoomy/data/repositories/repository_providers.dart';
-import 'package:hoomy/data/repositories/song_repository.dart';
 import 'package:hoomy/features/albums/albums_page.dart';
 import 'package:hoomy/features/artists/artists_page.dart';
 import 'package:hoomy/features/shared/alphabet_index_bar.dart';
@@ -23,10 +22,7 @@ import 'fake_transport.dart';
 /// 分组头、A–Z 快捷栏的出现与跳转、搜索即时过滤与清空恢复。
 void main() {
   Widget harness(Widget page, List<Override> overrides) => ProviderScope(
-        overrides: [
-          subsonicClientProvider.overrideWithValue(null),
-          ...overrides,
-        ],
+        overrides: overrides,
         child: MaterialApp(home: page),
       );
 
@@ -58,7 +54,7 @@ void main() {
 
       await tester.pumpWidget(harness(
         const SongsPage(),
-        [songRepositoryProvider.overrideWithValue(SongRepository(fakeClient(transport)))],
+        sessionOverrides(transport),
       ));
       await tester.pumpAndSettle();
 
@@ -86,7 +82,7 @@ void main() {
 
       await tester.pumpWidget(harness(
         const SongsPage(),
-        [songRepositoryProvider.overrideWithValue(SongRepository(fakeClient(transport)))],
+        sessionOverrides(transport),
       ));
       await tester.pumpAndSettle();
 
@@ -124,7 +120,7 @@ void main() {
 
       await tester.pumpWidget(harness(
         const SongsPage(),
-        [songRepositoryProvider.overrideWithValue(SongRepository(fakeClient(transport)))],
+        sessionOverrides(transport),
       ));
       await tester.pumpAndSettle();
       return transport;
@@ -186,7 +182,7 @@ void main() {
 
       await tester.pumpWidget(harness(
         const SongsPage(),
-        [songRepositoryProvider.overrideWithValue(SongRepository(fakeClient(transport)))],
+        sessionOverrides(transport),
       ));
       await tester.pumpAndSettle();
       return tester.widget<CustomScrollView>(find.byType(CustomScrollView));
@@ -248,7 +244,7 @@ void main() {
         });
       await tester.pumpWidget(harness(
         const SongsPage(),
-        [songRepositoryProvider.overrideWithValue(SongRepository(fakeClient(transport)))],
+        sessionOverrides(transport),
       ));
       await tester.pumpAndSettle();
     }
@@ -285,7 +281,11 @@ void main() {
 
     await tester.pumpWidget(harness(
       const AlbumsPage(),
-      [albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport)))],
+      [
+        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
+        subsonicClientProvider.overrideWithValue(null),
+        albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport))),
+      ],
     ));
     await tester.pumpAndSettle();
 
@@ -317,7 +317,11 @@ void main() {
 
     await tester.pumpWidget(harness(
       const AlbumsPage(),
-      [albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport)))],
+      [
+        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
+        subsonicClientProvider.overrideWithValue(null),
+        albumRepositoryProvider.overrideWithValue(AlbumRepository(fakeClient(transport))),
+      ],
     ));
     await tester.pumpAndSettle();
 
@@ -356,7 +360,11 @@ void main() {
 
     await tester.pumpWidget(harness(
       const ArtistsPage(),
-      [artistRepositoryProvider.overrideWithValue(ArtistRepository(fakeClient(transport)))],
+      [
+        // 旧接线（票据 03 迁移前）：显式隔离协议客户端，避免真发网络。
+        subsonicClientProvider.overrideWithValue(null),
+        artistRepositoryProvider.overrideWithValue(ArtistRepository(fakeClient(transport))),
+      ],
     ));
     await tester.pumpAndSettle();
 
