@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,12 +11,19 @@ import '../shared/hoomy_focusable.dart';
 import 'hoomy_destinations.dart';
 import 'session_guard.dart';
 import 'shell_actions.dart';
+import 'tab_revisit.dart';
 
 /// 侧边导航栏宽度：纵向图标 + 文字，10-foot 距离下读得清。
 const kTvNavigationRailWidth = 132.0;
 
 /// 侧边导航栏单项高度。
 const _navItemHeight = 76.0;
+
+/// 「切回」的判定时长（票据 05）：焦点在某个 Tab 上停住约 250ms 才算切回。
+///
+/// 更短会把「一路按上下键走过若干 Tab」也判成切回，扫一遍导航栏就打出好几串
+/// 取数；更长则跨设备同步的变化要等更久才出现。
+const kTabRevisitDwell = Duration(milliseconds: 250);
 
 /// Android TV 的主壳（ADR-0013 决策 1）。
 ///
@@ -43,12 +52,55 @@ class _TvHomeShellState extends ConsumerState<TvHomeShell> {
   /// 默认停在「歌曲」——曲库的主要入口（与手机外壳一致）。
   int _index = kSongsDestinationIndex;
 
+  /// 「切回」判定：冷启动所在的 Tab 记为已展示，回到曾经展示过的 Tab 才失效。
+  final _revisit = TabRevisit(kSongsDestinationIndex);
+
+  /// 焦点停住的计时器；焦点一离开这个导航项就作废（快速扫过不算切回）。
+  Timer? _dwell;
+
+  /// [_dwell] 正在为哪一项计时；焦点离开时按它对号入座地作废。
+  int? _dwellIndex;
+
+  @override
+  void dispose() {
+    _dwell?.cancel();
+    super.dispose();
+  }
+
   /// 导航项**拿到焦点**即切换内容（A 口径：聚焦即切换）。
   ///
   /// 与手机外壳的差别：底部 Tab 要按一下，TV 上焦点扫过就展示 —— 少一次按键，
   /// 而且六个页面本来就都挂在 `IndexedStack` 里，切换不产生任何取数。
-  void _onRailFocused(int i) {
+  ///
+  /// **切回才重取**（票据 05）：焦点停住约 [kTabRevisitDwell] 才算切回，使该 Tab
+  /// 消费的取数失效；首次进入的 Tab 不失效（冷启动每页只取一次），快速扫过也不
+  /// 失效。焦点在到点前离开这一项（扫到下一项、跳去「设置」、或确认键进内容区）
+  /// 同样作废计时 —— 没停住就不算切回。判定与失效入口都收在目的地与 `TabRevisit`
+  /// 里，外壳只说「切回了第几项」。
+  ///
+  /// 代价如实记录：一次切回 = 该 Tab 的取数重来一遍，局域网内一两个请求
+  ///（页大小见 ADR-0005），换来跨设备同步的改动能出现在已挂载的页面上。
+  void _onRailFocusChanged(int i, bool hasFocus) {
+    if (!hasFocus) {
+      // 焦点离开的正是还没停够时长的那一项：作废它的计时。
+      if (_dwellIndex != i) return;
+      _dwell?.cancel();
+      _dwell = null;
+      _dwellIndex = null;
+      return;
+    }
     if (_index != i) setState(() => _index = i);
+    // 焦点刚落到本项，先作废上一项还没到点的计时。
+    _dwell?.cancel();
+    _dwell = null;
+    _dwellIndex = null;
+    if (!_revisit.show(i)) return;
+    _dwellIndex = i;
+    _dwell = Timer(kTabRevisitDwell, () {
+      _dwell = null;
+      _dwellIndex = null;
+      if (mounted) kTvDestinations[i].invalidateProviders(ref);
+    });
   }
 
   @override
@@ -62,7 +114,7 @@ class _TvHomeShellState extends ConsumerState<TvHomeShell> {
         children: [
           _TvNavigationRail(
             selectedIndex: _index,
-            onFocused: _onRailFocused,
+            onFocusChanged: _onRailFocusChanged,
           ),
           Container(
             width: HoomyDimens.dividerThickness,
@@ -109,13 +161,14 @@ class _TvHomeShellState extends ConsumerState<TvHomeShell> {
 class _TvNavigationRail extends StatefulWidget {
   const _TvNavigationRail({
     required this.selectedIndex,
-    required this.onFocused,
+    required this.onFocusChanged,
   });
 
   final int selectedIndex;
 
-  /// 某项拿到焦点：切换右侧内容。
-  final ValueChanged<int> onFocused;
+  /// 某项焦点变化：拿到焦点切换右侧内容，失去焦点则作废它的停住计时
+  ///（可空索引不在此列 —— 「设置」不参与预览，也不参与切回判定）。
+  final void Function(int index, bool hasFocus) onFocusChanged;
 
   @override
   State<_TvNavigationRail> createState() => _TvNavigationRailState();
@@ -169,10 +222,10 @@ class _TvNavigationRailState extends State<_TvNavigationRail> {
                         onMoveUp: i == 0
                             ? () => _settingsNode.requestFocus()
                             : null,
-                        // 聚焦即切换：拿到焦点就把右侧切过去。
-                        onFocusChange: (hasFocus) {
-                          if (hasFocus) widget.onFocused(i);
-                        },
+                        // 聚焦即切换：拿到焦点就把右侧切过去；失去焦点要上报，
+                        // 外壳据此作废「停住 250ms」的计时。
+                        onFocusChange: (hasFocus) =>
+                            widget.onFocusChanged(i, hasFocus),
                         onTap: _enterContent,
                       ),
                   ],

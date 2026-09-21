@@ -6,6 +6,7 @@ import '../player/playback_error_banner.dart';
 import 'hoomy_destinations.dart';
 import 'session_guard.dart';
 import 'shell_actions.dart';
+import 'tab_revisit.dart';
 
 /// 手机外壳（iOS）：底部五 Tab——播放列表、艺术家、专辑、歌曲、更多。
 ///
@@ -21,6 +22,18 @@ class HomeShell extends ConsumerStatefulWidget {
 
 class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = kSongsDestinationIndex;
+
+  /// 「切回」判定：冷启动所在的 Tab 记为已展示，回到曾经展示过的 Tab 才失效。
+  final _revisit = TabRevisit(kSongsDestinationIndex);
+
+  /// 手机没有焦点预览，Tab 索引一变就算展示过；从此回到曾经展示过的 Tab 即
+  /// 「切回」，使它的取数失效并重取（票据 05）。首次进入的 Tab 不失效 —— 它在
+  /// 挂载时已经取过一次，重取是多余的。
+  void _onDestinationSelected(int i) {
+    if (i == _index) return;
+    setState(() => _index = i);
+    if (_revisit.show(i)) kPhoneDestinations[i].invalidateProviders(ref);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +60,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             ),
             NavigationBar(
               selectedIndex: _index,
-              onDestinationSelected: (i) => setState(() => _index = i),
+              onDestinationSelected: _onDestinationSelected,
               destinations: [
                 for (final destination in kPhoneDestinations)
                   NavigationDestination(
