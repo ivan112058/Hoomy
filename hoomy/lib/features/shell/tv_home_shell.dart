@@ -87,10 +87,13 @@ class _TvHomeShellState extends ConsumerState<TvHomeShell> {
 
 /// 一级导航栏：纵向图标列，每一项都可聚焦（D-pad 上下移动，确认键切换）。
 ///
+/// 上下键在**首尾循环**：在「播放列表」按上键到「设置」，在「设置」按下键回到
+/// 「播放列表」—— 电视遥控器没有指针，走到头再回顶比「卡住」更顺手。
+///
 /// 导航项可滚动：软键盘弹出时（`adjustResize`）窗口高度只剩几百 dp，固定列会
 /// 溢出；TV 上搜索/登录都要唤出键盘，这条路径真实存在。设置项钉在最下面，
 /// 不随导航项滚动 —— 它是唯一一个「不是页面」的入口。
-class _TvNavigationRail extends StatelessWidget {
+class _TvNavigationRail extends StatefulWidget {
   const _TvNavigationRail({
     required this.selectedIndex,
     required this.onSelected,
@@ -100,8 +103,25 @@ class _TvNavigationRail extends StatelessWidget {
   final ValueChanged<int> onSelected;
 
   @override
+  State<_TvNavigationRail> createState() => _TvNavigationRailState();
+}
+
+class _TvNavigationRailState extends State<_TvNavigationRail> {
+  /// 首项与设置项由本部件持有：循环的两端要能互相指名交焦点。
+  final _firstNode = FocusNode(debugLabel: 'TvNavFirst');
+  final _settingsNode = FocusNode(debugLabel: 'TvNavSettings');
+
+  @override
+  void dispose() {
+    _firstNode.dispose();
+    _settingsNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final palette = HoomyPalette.of(context);
+    final destinations = kTvDestinations;
     return SizedBox(
       width: kTvNavigationRailWidth,
       child: ColoredBox(
@@ -113,17 +133,21 @@ class _TvNavigationRail extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (var i = 0; i < kTvDestinations.length; i++)
+                    for (var i = 0; i < destinations.length; i++)
                       _TvNavItem(
-                        icon: kTvDestinations[i].icon,
-                        selectedIcon: kTvDestinations[i].selectedIcon,
-                        label: kTvDestinations[i].label,
-                        selected: i == selectedIndex,
+                        icon: destinations[i].icon,
+                        selectedIcon: destinations[i].selectedIcon,
+                        label: destinations[i].label,
+                        selected: i == widget.selectedIndex,
                         // 启动即聚焦当前项：遥控器一上来就有焦点可移动，不必先按
                         // 一下方向键。之后切换 Tab 时 autofocus 不会再次生效
                         //（只认首次挂载）。
-                        autofocus: i == selectedIndex,
-                        onTap: () => onSelected(i),
+                        autofocus: i == widget.selectedIndex,
+                        focusNode: i == 0 ? _firstNode : null,
+                        onMoveUp: i == 0
+                            ? () => _settingsNode.requestFocus()
+                            : null,
+                        onTap: () => widget.onSelected(i),
                       ),
                   ],
                 ),
@@ -137,6 +161,8 @@ class _TvNavigationRail extends StatelessWidget {
               label: '设置',
               selected: false,
               autofocus: false,
+              focusNode: _settingsNode,
+              onMoveDown: () => _firstNode.requestFocus(),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
               ),
@@ -158,6 +184,9 @@ class _TvNavItem extends StatelessWidget {
     required this.selected,
     required this.autofocus,
     required this.onTap,
+    this.focusNode,
+    this.onMoveUp,
+    this.onMoveDown,
   });
 
   final IconData icon;
@@ -167,12 +196,24 @@ class _TvNavItem extends StatelessWidget {
   final bool autofocus;
   final VoidCallback onTap;
 
+  /// 外部节点：循环的两端由导航栏持有。
+  final FocusNode? focusNode;
+
+  /// 上键改判（首项 → 设置）。
+  final VoidCallback? onMoveUp;
+
+  /// 下键改判（设置 → 首项）。
+  final VoidCallback? onMoveDown;
+
   @override
   Widget build(BuildContext context) {
     final palette = HoomyPalette.of(context);
     return HoomyFocusable(
       onTap: onTap,
       autofocus: autofocus,
+      focusNode: focusNode,
+      onMoveUp: onMoveUp,
+      onMoveDown: onMoveDown,
       builder: (context, highlight) {
         final color = highlight.foreground(
           palette,

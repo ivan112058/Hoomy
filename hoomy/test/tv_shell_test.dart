@@ -156,6 +156,38 @@ void main() {
       expect(label.style?.fontSize, HoomyDimens.listSubtitleFontSize);
     });
 
+    testWidgets('上下键在导航栏首尾循环：首项 ↔ 设置', (tester) async {
+      await tester.pumpWidget(harness(const TvHomeShell()));
+      await tester.pumpAndSettle();
+
+      /// 某个导航项自身是否拿到主焦点（用它的文字节点找最近的 Focus）。
+      bool focused(WidgetTester tester, Finder finder) =>
+          Focus.of(tester.element(finder)).hasPrimaryFocus;
+
+      // 首项按上键 → 设置（而不是卡住）。
+      Focus.of(tester.element(find.text('播放列表'))).requestFocus();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(focused(tester, find.text('设置')), isTrue, reason: '首项上键应循环到设置');
+
+      // 设置按下键 → 首项。
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(
+        focused(tester, find.text('播放列表')),
+        isTrue,
+        reason: '设置下键应循环到首项',
+      );
+
+      // 中间项仍走默认几何遍历：歌曲的上键是专辑。
+      Focus.of(tester.element(find.text('歌曲').first)).requestFocus();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(focused(tester, find.text('专辑')), isTrue, reason: '中间项不该被改判');
+    });
+
     testWidgets('设置钉在导航栏最下面，确认键推入设置页', (tester) async {
       SharedPreferences.setMockInitialValues({});
 

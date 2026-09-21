@@ -53,6 +53,16 @@ class HoomyEnterDescendantsIntent extends Intent {
   const HoomyEnterDescendantsIntent();
 }
 
+/// 上键改判意图（左侧导航栏首尾循环用）。
+class HoomyMoveUpIntent extends Intent {
+  const HoomyMoveUpIntent();
+}
+
+/// 下键改判意图（左侧导航栏首尾循环用）。
+class HoomyMoveDownIntent extends Intent {
+  const HoomyMoveDownIntent();
+}
+
 /// 把「可点元素」变成「可聚焦元素」的**唯一落点**。
 ///
 /// D-pad 的方向键遍历、滚入视口由 Flutter 的 `Focus` 与遍历策略承担；本部件
@@ -74,7 +84,10 @@ class HoomyFocusable extends StatefulWidget {
     this.onTap,
     this.onMovePrevious,
     this.onMoveNext,
+    this.onMoveUp,
+    this.onMoveDown,
     this.enterDescendantsOnRight = false,
+    this.focusNode,
     this.autofocus = false,
   });
 
@@ -90,6 +103,19 @@ class HoomyFocusable extends StatefulWidget {
 
   /// 右键回调（队列里=下移）；为 null 时不改判右键。
   final VoidCallback? onMoveNext;
+
+  /// 上键回调；为 null 时不改判上键（走默认的方向遍历）。
+  final VoidCallback? onMoveUp;
+
+  /// 下键回调；为 null 时不改判下键（走默认的方向遍历）。
+  final VoidCallback? onMoveDown;
+
+  /// 外部提供的焦点节点。
+  ///
+  /// 左侧导航栏要在首尾之间循环，就得能**指名**把焦点交给另一项；所以首项与
+  /// 「设置」的节点由导航栏自己持有并在此注入。提供时节点归调用方所有，本部件
+  /// 不创建也不释放它；节点在整个生命周期内必须稳定（不做热替换）。
+  final FocusNode? focusNode;
 
   /// 右键优先进入**自身子树里**的可聚焦元素（行尾收藏星标这类行内动作）。
   ///
@@ -113,7 +139,11 @@ class _HoomyFocusableState extends State<HoomyFocusable> {
   /// 与 Android pressed-state 时长一致：同帧完成的点击也至少可见一瞬。
   static const _minPressedDuration = Duration(milliseconds: 64);
 
-  final FocusNode _node = FocusNode(debugLabel: 'HoomyFocusable');
+  /// 自建节点；调用方注入了 [HoomyFocusable.focusNode] 时保持为 null。
+  FocusNode? _createdNode;
+
+  late final FocusNode _node =
+      widget.focusNode ?? (_createdNode = FocusNode(debugLabel: 'HoomyFocusable'));
 
   bool _pressed = false;
   bool _focused = false;
@@ -124,6 +154,8 @@ class _HoomyFocusableState extends State<HoomyFocusable> {
       widget.onTap != null ||
       widget.onMovePrevious != null ||
       widget.onMoveNext != null ||
+      widget.onMoveUp != null ||
+      widget.onMoveDown != null ||
       widget.enterDescendantsOnRight;
 
   @override
@@ -138,7 +170,8 @@ class _HoomyFocusableState extends State<HoomyFocusable> {
   void dispose() {
     _releaseTimer?.cancel();
     _node.removeListener(_handleFocusChange);
-    _node.dispose();
+    // 注入了外部节点时归调用方释放。
+    _createdNode?.dispose();
     super.dispose();
   }
 
@@ -175,6 +208,8 @@ class _HoomyFocusableState extends State<HoomyFocusable> {
   Widget build(BuildContext context) {
     final onMovePrevious = widget.onMovePrevious;
     final onMoveNext = widget.onMoveNext;
+    final onMoveUp = widget.onMoveUp;
+    final onMoveDown = widget.onMoveDown;
     // 队列重排占用了右键；只有在没人认领右键时才做「进入行内动作」。
     final enterDescendants =
         widget.enterDescendantsOnRight && onMoveNext == null;
@@ -188,6 +223,12 @@ class _HoomyFocusableState extends State<HoomyFocusable> {
       else if (enterDescendants)
         const SingleActivator(LogicalKeyboardKey.arrowRight):
             const HoomyEnterDescendantsIntent(),
+      if (onMoveUp != null)
+        const SingleActivator(LogicalKeyboardKey.arrowUp):
+            const HoomyMoveUpIntent(),
+      if (onMoveDown != null)
+        const SingleActivator(LogicalKeyboardKey.arrowDown):
+            const HoomyMoveDownIntent(),
     };
     final actions = <Type, Action<Intent>>{
       // 只在真的有动作时接确认键：否则纯展示行会「吃掉」确认键，
@@ -217,6 +258,20 @@ class _HoomyFocusableState extends State<HoomyFocusable> {
         HoomyEnterDescendantsIntent: CallbackAction<HoomyEnterDescendantsIntent>(
           onInvoke: (_) {
             _focusFirstDescendant();
+            return null;
+          },
+        ),
+      if (onMoveUp != null)
+        HoomyMoveUpIntent: CallbackAction<HoomyMoveUpIntent>(
+          onInvoke: (_) {
+            onMoveUp();
+            return null;
+          },
+        ),
+      if (onMoveDown != null)
+        HoomyMoveDownIntent: CallbackAction<HoomyMoveDownIntent>(
+          onInvoke: (_) {
+            onMoveDown();
             return null;
           },
         ),
