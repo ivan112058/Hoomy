@@ -36,10 +36,12 @@ void main() {
   ///
   /// 外壳之下会话必不为空（票据 02）：这里注入「真会话 + 假传输」，读端点都有
   /// 空的固定响应，页面因此落在空态而不是错误态。
-  Widget harness(Widget home, {HoomyFormFactor formFactor = HoomyFormFactor.tv, List<Override> overrides = const []}) =>
+  Widget harness(Widget home, {HoomyFormFactor formFactor = HoomyFormFactor.tv, FakeTransport? transport, List<Override> overrides = const []}) =>
       ProviderScope(
         overrides: [
-          sessionProvider.overrideWithValue(fakeSession(emptyLibraryTransport())),
+          sessionProvider.overrideWithValue(
+            fakeSession(transport ?? emptyLibraryTransport()),
+          ),
           ...overrides,
         ],
         child: HoomyFormFactorScope(
@@ -126,25 +128,43 @@ void main() {
   });
 
   group('侧边导航栏', () {
-    testWidgets('启动即聚焦当前项，确认键切换内容区', (tester) async {
-      await tester.pumpWidget(harness(const TvHomeShell()));
+    testWidgets('启动即聚焦当前项，焦点移动即切换内容区', (tester) async {
+      // 给「风格」页一份非空曲库：内容区有可聚焦的行，右键才出得去。
+      final transport = emptyLibraryTransport()
+        ..ok('getGenres.view', {
+          'genres': {
+            'genre': [
+              {'value': 'Rock', 'songCount': 3},
+            ],
+          },
+        });
+      await tester.pumpWidget(harness(const TvHomeShell(), transport: transport));
       await tester.pumpAndSettle();
 
       // 当前项「歌曲」在启动时就拿到了焦点：整块铺交互蓝。
+      // 页面标题也叫「歌曲」，导航栏在树里排在内容区之前，所以取 first。
       final focusedBox = tester.widget<ColoredBox>(
-        find.ancestor(of: find.text('歌曲'), matching: find.byType(ColoredBox)).first,
+        find.ancestor(of: find.text('歌曲').first, matching: find.byType(ColoredBox)).first,
       );
       expect(focusedBox.color, HoomyColors.interactionBlue);
 
       // 默认停在第 4 项（歌曲）。
       expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 3);
 
-      // 确认键切到「风格」（第 5 项）：内容区索引随之变化。
-      Focus.of(tester.element(find.text('风格'))).requestFocus();
-      await tester.pumpAndSettle();
-      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      // **聚焦即切换**：焦点移到「风格」（第 5 项），内容区索引立刻跟着变，
+      // 不需要按确认键。
+      Focus.of(tester.element(find.text('风格').first)).requestFocus();
       await tester.pumpAndSettle();
       expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 4);
+
+      // 内容已经切好了；确认键把焦点送进内容区（不再是「切 Tab」）。
+      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      await tester.pumpAndSettle();
+      expect(
+        Focus.of(tester.element(find.text('风格').first)).hasPrimaryFocus,
+        isFalse,
+        reason: '确认键应把焦点交给内容区',
+      );
     });
 
     testWidgets('复用既定语 token：导航项字号不另立一套', (tester) async {
@@ -165,7 +185,7 @@ void main() {
           Focus.of(tester.element(finder)).hasPrimaryFocus;
 
       // 首项按上键 → 设置（而不是卡住）。
-      Focus.of(tester.element(find.text('播放列表'))).requestFocus();
+      Focus.of(tester.element(find.text('播放列表').first)).requestFocus();
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
       await tester.pumpAndSettle();
@@ -175,7 +195,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pumpAndSettle();
       expect(
-        focused(tester, find.text('播放列表')),
+        focused(tester, find.text('播放列表').first),
         isTrue,
         reason: '设置下键应循环到首项',
       );
@@ -185,7 +205,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
       await tester.pumpAndSettle();
-      expect(focused(tester, find.text('专辑')), isTrue, reason: '中间项不该被改判');
+      expect(focused(tester, find.text('专辑').first), isTrue, reason: '中间项不该被改判');
     });
 
     testWidgets('设置钉在导航栏最下面，确认键推入设置页', (tester) async {
@@ -201,7 +221,17 @@ void main() {
       );
       expect(find.text('更多'), findsNothing);
 
+      // 设置不是页面：焦点停在它上面不该切内容。
+      final indexBefore = tester
+          .widget<IndexedStack>(find.byType(IndexedStack))
+          .index;
       Focus.of(tester.element(find.text('设置'))).requestFocus();
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<IndexedStack>(find.byType(IndexedStack)).index,
+        indexBefore,
+        reason: '设置不参与「聚焦即切换」',
+      );
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.select);
       await tester.pumpAndSettle();

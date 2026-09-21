@@ -25,6 +25,10 @@ const _navItemHeight = 76.0;
 /// 导航清单里没有「更多」：风格与我喜欢的歌曲直接是一级项，设置钉在导航栏
 /// 最下面（票据 03 真机验收后按使用反馈调整）。
 ///
+/// **聚焦即切换**：导航项拿到焦点就把内容切过去，不必再按确认键；确认键因此
+/// 改为把焦点送进内容区。六个页面本就都挂在 `IndexedStack` 里，切换不产生取数。
+/// 「设置」不是页面，不参与预览。上下键在首尾循环（首项 ↔ 设置）。
+///
 /// 为什么不是底部 Tab：迷你播放条已在底栏之上，两条横向 chrome 会在底边堆叠，
 /// D-pad 要频繁在两者间穿梭；侧边导航栏与迷你条分处纵横两条 chrome，且
 /// 左右键天然对应「导航 ↔ 内容」。
@@ -39,6 +43,14 @@ class _TvHomeShellState extends ConsumerState<TvHomeShell> {
   /// 默认停在「歌曲」——曲库的主要入口（与手机外壳一致）。
   int _index = kSongsDestinationIndex;
 
+  /// 导航项**拿到焦点**即切换内容（A 口径：聚焦即切换）。
+  ///
+  /// 与手机外壳的差别：底部 Tab 要按一下，TV 上焦点扫过就展示 —— 少一次按键，
+  /// 而且六个页面本来就都挂在 `IndexedStack` 里，切换不产生任何取数。
+  void _onRailFocused(int i) {
+    if (_index != i) setState(() => _index = i);
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = HoomyPalette.of(context);
@@ -50,7 +62,7 @@ class _TvHomeShellState extends ConsumerState<TvHomeShell> {
         children: [
           _TvNavigationRail(
             selectedIndex: _index,
-            onSelected: (i) => setState(() => _index = i),
+            onFocused: _onRailFocused,
           ),
           Container(
             width: HoomyDimens.dividerThickness,
@@ -85,7 +97,8 @@ class _TvHomeShellState extends ConsumerState<TvHomeShell> {
   }
 }
 
-/// 一级导航栏：纵向图标列，每一项都可聚焦（D-pad 上下移动，确认键切换）。
+/// 一级导航栏：纵向图标列，每一项都可聚焦；焦点一动，右侧内容就跟着切
+///（「聚焦即切换」，见 [TvHomeShell]）。
 ///
 /// 上下键在**首尾循环**：在「播放列表」按上键到「设置」，在「设置」按下键回到
 /// 「播放列表」—— 电视遥控器没有指针，走到头再回顶比「卡住」更顺手。
@@ -96,11 +109,13 @@ class _TvHomeShellState extends ConsumerState<TvHomeShell> {
 class _TvNavigationRail extends StatefulWidget {
   const _TvNavigationRail({
     required this.selectedIndex,
-    required this.onSelected,
+    required this.onFocused,
   });
 
   final int selectedIndex;
-  final ValueChanged<int> onSelected;
+
+  /// 某项拿到焦点：切换右侧内容。
+  final ValueChanged<int> onFocused;
 
   @override
   State<_TvNavigationRail> createState() => _TvNavigationRailState();
@@ -117,6 +132,13 @@ class _TvNavigationRailState extends State<_TvNavigationRail> {
     _settingsNode.dispose();
     super.dispose();
   }
+
+  /// 聚焦即切换之后，确认键不再是「切 Tab」（焦点已经把内容切过去了）；
+  /// 让它把焦点送进内容区，键盘用户与方向键用户就都有同一条前进路径。
+  void _enterContent() =>
+      FocusManager.instance.primaryFocus?.focusInDirection(
+        TraversalDirection.right,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +169,11 @@ class _TvNavigationRailState extends State<_TvNavigationRail> {
                         onMoveUp: i == 0
                             ? () => _settingsNode.requestFocus()
                             : null,
-                        onTap: () => widget.onSelected(i),
+                        // 聚焦即切换：拿到焦点就把右侧切过去。
+                        onFocusChange: (hasFocus) {
+                          if (hasFocus) widget.onFocused(i);
+                        },
+                        onTap: _enterContent,
                       ),
                   ],
                 ),
@@ -184,6 +210,7 @@ class _TvNavItem extends StatelessWidget {
     required this.selected,
     required this.autofocus,
     required this.onTap,
+    this.onFocusChange,
     this.focusNode,
     this.onMoveUp,
     this.onMoveDown,
@@ -195,6 +222,9 @@ class _TvNavItem extends StatelessWidget {
   final bool selected;
   final bool autofocus;
   final VoidCallback onTap;
+
+  /// 焦点变化回调（聚焦即切换用）。
+  final ValueChanged<bool>? onFocusChange;
 
   /// 外部节点：循环的两端由导航栏持有。
   final FocusNode? focusNode;
@@ -212,6 +242,7 @@ class _TvNavItem extends StatelessWidget {
       onTap: onTap,
       autofocus: autofocus,
       focusNode: focusNode,
+      onFocusChange: onFocusChange,
       onMoveUp: onMoveUp,
       onMoveDown: onMoveDown,
       builder: (context, highlight) {

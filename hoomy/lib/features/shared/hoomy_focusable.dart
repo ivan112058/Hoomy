@@ -88,6 +88,7 @@ class HoomyFocusable extends StatefulWidget {
     this.onMoveDown,
     this.enterDescendantsOnRight = false,
     this.focusNode,
+    this.onFocusChange,
     this.autofocus = false,
   });
 
@@ -127,6 +128,12 @@ class HoomyFocusable extends StatefulWidget {
   ///
   /// [onMoveNext] 非空时以调用方语义（队列重排的「下移」）为准，本项不生效。
   final bool enterDescendantsOnRight;
+
+  /// 焦点变化回调：拿到或失去**自身**主焦点时各回调一次。
+  ///
+  /// 左侧导航栏用它做「聚焦即切换」；刻意不在外面再包一层 `Focus` 去观察后代
+  /// ——那会多出一个节点，把方向遍历弄坏（票据 06 实测：右键从此出不了导航栏）。
+  final ValueChanged<bool>? onFocusChange;
 
   /// 是否在挂载时自动取得焦点。
   final bool autofocus;
@@ -177,7 +184,9 @@ class _HoomyFocusableState extends State<HoomyFocusable> {
 
   void _handleFocusChange() {
     final focused = _node.hasPrimaryFocus;
-    if (focused != _focused) setState(() => _focused = focused);
+    if (focused == _focused) return;
+    setState(() => _focused = focused);
+    widget.onFocusChange?.call(focused);
   }
 
   void _handlePressStart() {
