@@ -47,6 +47,12 @@ class HoomyMoveNextIntent extends Intent {
   const HoomyMoveNextIntent();
 }
 
+/// 「右键进入行内动作」意图：把焦点交给自身子树里的第一个可聚焦元素
+/// （行尾收藏星标这类嵌在行内的动作）。
+class HoomyEnterDescendantsIntent extends Intent {
+  const HoomyEnterDescendantsIntent();
+}
+
 /// 把「可点元素」变成「可聚焦元素」的**唯一落点**。
 ///
 /// D-pad 的方向键遍历、滚入视口由 Flutter 的 `Focus` 与遍历策略承担；本部件
@@ -68,6 +74,7 @@ class HoomyFocusable extends StatefulWidget {
     this.onTap,
     this.onMovePrevious,
     this.onMoveNext,
+    this.enterDescendantsOnRight = false,
     this.autofocus = false,
   });
 
@@ -83,6 +90,17 @@ class HoomyFocusable extends StatefulWidget {
 
   /// 右键回调（队列里=下移）；为 null 时不改判右键。
   final VoidCallback? onMoveNext;
+
+  /// 右键优先进入**自身子树里**的可聚焦元素（行尾收藏星标这类行内动作）。
+  ///
+  /// 方向导航只把「中心点在当前 rect 之外」的节点算作候选
+  /// （`_sortAndFilterHorizontally`），而嵌在行内的星标永远落在行的 rect **之内**，
+  /// 几何算法够不到它 —— 于是「行是可聚焦的」这件事反过来把星标挡在了外面。
+  /// 这里显式改判一次右键，把焦点交给子树里的第一个可聚焦元素；
+  /// 左键不必特殊处理：几何算法在反方向上能命中整行。
+  ///
+  /// [onMoveNext] 非空时以调用方语义（队列重排的「下移」）为准，本项不生效。
+  final bool enterDescendantsOnRight;
 
   /// 是否在挂载时自动取得焦点。
   final bool autofocus;
@@ -105,7 +123,8 @@ class _HoomyFocusableState extends State<HoomyFocusable> {
   bool get _focusable =>
       widget.onTap != null ||
       widget.onMovePrevious != null ||
-      widget.onMoveNext != null;
+      widget.onMoveNext != null ||
+      widget.enterDescendantsOnRight;
 
   @override
   void initState() {
@@ -144,17 +163,31 @@ class _HoomyFocusableState extends State<HoomyFocusable> {
 
   void _activate() => widget.onTap?.call();
 
+  /// 把焦点交给子树里的第一个可聚焦元素；没有就什么都不做。
+  void _focusFirstDescendant() {
+    for (final node in _node.traversalDescendants) {
+      node.requestFocus();
+      return;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final onMovePrevious = widget.onMovePrevious;
     final onMoveNext = widget.onMoveNext;
+    // 队列重排占用了右键；只有在没人认领右键时才做「进入行内动作」。
+    final enterDescendants =
+        widget.enterDescendantsOnRight && onMoveNext == null;
     final shortcuts = <ShortcutActivator, Intent>{
       if (onMovePrevious != null)
         const SingleActivator(LogicalKeyboardKey.arrowLeft):
             const HoomyMovePreviousIntent(),
       if (onMoveNext != null)
         const SingleActivator(LogicalKeyboardKey.arrowRight):
-            const HoomyMoveNextIntent(),
+            const HoomyMoveNextIntent()
+      else if (enterDescendants)
+        const SingleActivator(LogicalKeyboardKey.arrowRight):
+            const HoomyEnterDescendantsIntent(),
     };
     final actions = <Type, Action<Intent>>{
       // 只在真的有动作时接确认键：否则纯展示行会「吃掉」确认键，
@@ -177,6 +210,13 @@ class _HoomyFocusableState extends State<HoomyFocusable> {
         HoomyMoveNextIntent: CallbackAction<HoomyMoveNextIntent>(
           onInvoke: (_) {
             onMoveNext();
+            return null;
+          },
+        ),
+      if (enterDescendants)
+        HoomyEnterDescendantsIntent: CallbackAction<HoomyEnterDescendantsIntent>(
+          onInvoke: (_) {
+            _focusFirstDescendant();
             return null;
           },
         ),

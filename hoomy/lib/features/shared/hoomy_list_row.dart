@@ -118,6 +118,10 @@ class HoomyListRow extends StatelessWidget {
       onTap: onTap,
       onMovePrevious: onMovePrevious,
       onMoveNext: onMoveNext,
+      // 行尾可能挂着可聚焦的动作（收藏星标、清除按钮）：右键进入它。
+      // 整行铺满宽度，方向导航在行右侧找不到任何候选，行内的星标又落在行的
+      // rect 之内 —— 不显式改判就永远够不到（票据 03 真机发现）。
+      enterDescendantsOnRight: trailing != null,
       builder: (context, highlight) {
         final titleColor = highlight.foreground(
           palette,

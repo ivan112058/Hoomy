@@ -10,7 +10,8 @@ import 'shell_actions.dart';
 /// 手机外壳（iOS）：底部五 Tab——播放列表、艺术家、专辑、歌曲、更多。
 ///
 /// TV 另有 [TvHomeShell]（侧边导航栏，ADR-0013 决策 1）；两者共用
-/// [kHoomyDestinations] 里的页面清单，只有导航 chrome 不同。
+/// [kPhoneDestinations] / `kTvDestinations` 里的同一批**页面**，只有导航 chrome
+/// 与清单不同。
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
@@ -19,7 +20,7 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
-  int _index = 3;
+  int _index = kSongsDestinationIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +29,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         child: IndexedStack(
           index: _index,
           children: [
-            for (final destination in kHoomyDestinations) destination.page,
+            for (final destination in kPhoneDestinations) destination.page,
           ],
         ),
       ),
@@ -48,7 +49,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               selectedIndex: _index,
               onDestinationSelected: (i) => setState(() => _index = i),
               destinations: [
-                for (final destination in kHoomyDestinations)
+                for (final destination in kPhoneDestinations)
                   NavigationDestination(
                     icon: Icon(destination.icon),
                     selectedIcon: Icon(destination.selectedIcon),

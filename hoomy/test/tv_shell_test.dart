@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:hoomy/core/alphabet/alphabet.dart';
 import 'package:hoomy/core/platform/form_factor.dart';
@@ -97,10 +98,19 @@ void main() {
 
         expect(find.byType(TvHomeShell), findsOneWidget);
         expect(find.byType(NavigationBar), findsNothing);
-        for (final label in ['播放列表', '艺术家', '专辑', '歌曲', '更多']) {
+        for (final label in [
+          '播放列表',
+          '艺术家',
+          '专辑',
+          '歌曲',
+          '风格',
+          '我喜欢的歌曲',
+          '设置',
+        ]) {
           // 「歌曲」既是导航项也是页面标题，因此只要求至少出现一次。
           expect(find.text(label), findsWidgets, reason: '侧边导航缺少 $label');
         }
+        expect(find.text('更多'), findsNothing, reason: 'TV 上不再需要「更多」');
       });
     });
 
@@ -129,8 +139,8 @@ void main() {
       // 默认停在第 4 项（歌曲）。
       expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 3);
 
-      // 确认键切到「更多」：内容区索引随之变化。
-      Focus.of(tester.element(find.text('更多'))).requestFocus();
+      // 确认键切到「风格」（第 5 项）：内容区索引随之变化。
+      Focus.of(tester.element(find.text('风格'))).requestFocus();
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.select);
       await tester.pumpAndSettle();
@@ -146,6 +156,27 @@ void main() {
       expect(label.style?.fontSize, HoomyDimens.listSubtitleFontSize);
     });
 
+    testWidgets('设置钉在导航栏最下面，确认键推入设置页', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+
+      await tester.pumpWidget(harness(const TvHomeShell()));
+      await tester.pumpAndSettle();
+
+      // 「设置」排在最后一个一级导航项之下，且 TV 上不再有「更多」。
+      expect(
+        tester.getTopLeft(find.text('设置')).dy,
+        greaterThan(tester.getTopLeft(find.text('我喜欢的歌曲')).dy),
+      );
+      expect(find.text('更多'), findsNothing);
+
+      Focus.of(tester.element(find.text('设置'))).requestFocus();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      await tester.pumpAndSettle();
+
+      expect(find.text('退出登录'), findsOneWidget, reason: '推入的是设置页');
+    });
+
     testWidgets('软键盘弹出、窗口变矮时导航栏不溢出（可滚动）', (tester) async {
       // 电视上搜索与登录都会唤出系统键盘，`adjustResize` 把窗口压到几百 dp；
       // 导航栏 5 × 76dp 的固定列曾因此溢出 65px（真机发现）。
@@ -158,7 +189,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 溢出会以 FlutterError 让用例失败；这里同时确认导航项都还在。
-      for (final label in ['播放列表', '艺术家', '专辑', '歌曲', '更多']) {
+      for (final label in ['播放列表', '艺术家', '专辑', '歌曲', '风格', '我喜欢的歌曲', '设置']) {
         // 「歌曲」既是导航项也是页面标题。
         expect(find.text(label), findsWidgets);
       }

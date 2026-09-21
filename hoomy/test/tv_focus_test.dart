@@ -9,11 +9,13 @@ import 'package:hoomy/core/platform/form_factor.dart';
 import 'package:hoomy/core/theme/hoomy_theme.dart';
 import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/subsonic/models.dart';
+import 'package:hoomy/features/albums/album_detail_page.dart';
 import 'package:hoomy/features/auth/login_page.dart';
 import 'package:hoomy/features/player/queue_overlay.dart';
 import 'package:hoomy/features/shared/album_grid_cell.dart';
 import 'package:hoomy/features/shared/hoomy_icon_button.dart';
 import 'package:hoomy/features/shared/hoomy_list_row.dart';
+import 'package:hoomy/features/shared/song_tile.dart';
 import 'package:hoomy/features/songs/songs_page.dart';
 import 'package:hoomy/player/playback_controller.dart';
 import 'package:hoomy/player/player_providers.dart';
@@ -129,6 +131,44 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(taps, 1);
+    });
+
+    testWidgets('右键从行移动到行尾星标', (tester) async {
+      await tester.pumpWidget(
+        tvHarness(
+          Scaffold(
+            body: SongTile(
+              song: const SubsonicSong(id: 's1', title: '晴天'),
+              onTap: () {},
+            ),
+          ),
+        ),
+      );
+
+      focusOn(tester, find.text('晴天'));
+      await tester.pumpAndSettle();
+      expect(
+        Focus.of(tester.element(find.byIcon(Icons.star_border))).hasPrimaryFocus,
+        isFalse,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+
+      expect(
+        Focus.of(tester.element(find.byIcon(Icons.star_border))).hasPrimaryFocus,
+        isTrue,
+        reason: 'TV 上必须能从歌曲行聚焦到行尾星标',
+      );
+
+      // 左键回到行上：反方向由几何算法命中整行，不必再改判。
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(
+        Focus.of(tester.element(find.text('晴天'))).hasPrimaryFocus,
+        isTrue,
+        reason: '左键应回到行上',
+      );
     });
 
     testWidgets('焦点随方向键移动，长列表里滚入视口', (tester) async {
@@ -260,6 +300,45 @@ void main() {
       expect(boxColorOf(tester, find.text('叶惠美')), HoomyColors.interactionBlue);
       expect(tester.widget<Text>(find.text('叶惠美')).style?.color, Colors.white);
       expect(tester.widget<Text>(find.text('周杰伦')).style?.color, Colors.white);
+    });
+  });
+
+  group('专辑详情', () {
+    FakeTransport albumTransport() => FakeTransport()
+      ..ok('getAlbum.view', {
+        'album': {
+          'id': 'al1',
+          'name': '叶惠美',
+          'artist': '周杰伦',
+          'song': [
+            {'id': 's1', 'title': '晴天'},
+          ],
+        },
+      });
+
+    testWidgets('头部星标能被方向键聚焦（从「全部播放」上键过去）', (tester) async {
+      await tester.pumpWidget(
+        tvHarness(
+          const AlbumDetailPage(album: SubsonicAlbum(id: 'al1', name: '叶惠美')),
+          overrides: [
+            sessionProvider.overrideWithValue(fakeSession(albumTransport())),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      focusOn(tester, find.text('全部播放'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+
+      // 头部星标排在曲目行的星标之前；用图标定位，才能拿到它所在的 Focus。
+      final headerStar = find.byIcon(Icons.star_border).first;
+      expect(
+        Focus.of(tester.element(headerStar)).hasPrimaryFocus,
+        isTrue,
+        reason: '专辑详情头部的收藏星标必须能被 D-pad 聚焦',
+      );
     });
   });
 
