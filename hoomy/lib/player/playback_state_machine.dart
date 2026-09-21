@@ -374,7 +374,11 @@ class PlaybackStateMachine {
     return true;
   }
 
-  /// 释放订阅与引擎。
+  /// 释放订阅，并让引擎**停下**（不释放它）。
+  ///
+  /// 引擎的寿命属于应用（`playerEngineProvider`），不属于随会话生灭的控制器：
+  /// 这里若 `_engine.dispose()`，登出会把根容器里的引擎一起弄死，重新登录后拿到
+  /// 的就是一个已释放的引擎，播放与点歌全部静默失效（票据 07 的真机缺陷）。
   Future<void> dispose() async {
     await _completionSub?.cancel();
     _completionSub = null;
@@ -382,7 +386,7 @@ class PlaybackStateMachine {
     _errorSub = null;
     await _states.close();
     await _errors.close();
-    await _engine.dispose();
+    await _engine.pause();
   }
 
   /// 队列下标的自然序。

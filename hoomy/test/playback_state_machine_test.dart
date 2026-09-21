@@ -771,12 +771,23 @@ void main() {
     });
   });
 
-  test('dispose 释放引擎', () async {
+  test('dispose 让引擎停下，但不释放它（引擎的寿命属于应用，票据 07）', () async {
     final (:engine, :machine) = build();
     await machine.playQueue(songs(1));
+    final pausesBefore = engine.pauseCount;
 
     await machine.dispose();
 
-    expect(engine.disposed, isTrue);
+    expect(
+      engine.disposed,
+      isFalse,
+      reason: '控制器随会话生灭、引擎随应用生灭：释放引擎不是它的权限',
+    );
+    expect(
+      engine.pauseCount,
+      pausesBefore + 1,
+      reason: '释放只让引擎停下一次（静音）',
+    );
+    expect(engine.hasListeners, isFalse, reason: '订阅要真的解除');
   });
 }

@@ -25,6 +25,16 @@ class FakePlayerEngine implements PlayerEngine {
   final List<double> volumes = [];
   bool disposed = false;
 
+  /// 本引擎的四条流上是否还挂着订阅。
+  ///
+  /// 释放类用例据此断言订阅**真的**解除了 —— 只看 [disposed] 分不清「取消了订阅」
+  /// 与「留着订阅、靠下游的 `_disposed` 兜住」。
+  bool get hasListeners =>
+      _state.hasListener ||
+      _position.hasListener ||
+      _completion.hasListener ||
+      _errors.hasListener;
+
   @override
   Stream<Duration> get positionStream => _position.stream;
 

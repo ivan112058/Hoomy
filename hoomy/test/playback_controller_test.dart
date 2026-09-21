@@ -514,12 +514,47 @@ void main() {
     });
   });
 
-  test('dispose 释放引擎与状态机订阅', () async {
+  test('dispose 释放订阅并让引擎停下，但不释放引擎（票据 07）', () async {
     final (:engine, :controller) = build();
     await controller.playQueue(songs(1));
+    final pausesBefore = engine.pauseCount;
 
     await controller.dispose();
 
-    expect(engine.disposed, isTrue);
+    expect(
+      engine.disposed,
+      isFalse,
+      reason: '引擎的寿命属于应用（playerEngineProvider），不属于控制器',
+    );
+    expect(
+      engine.pauseCount,
+      pausesBefore + 1,
+      reason: '释放只让引擎停下一次（静音），不是别的什么 pause 顶替',
+    );
+    expect(engine.hasListeners, isFalse, reason: '订阅要真的解除，不只是靠 _disposed 兜住');
+  });
+
+  test('登出再登录后，同一个引擎仍能播放（票据 07）', () async {
+    // 控制器随会话生灭、引擎随应用生灭：登出时若把引擎一起释放，重新登录后的
+    // 新控制器就没法播了。引擎的寿命规则见 `PlaybackStateMachine.dispose()`。
+    final engine = FakePlayerEngine();
+    PlaybackController login() =>
+        PlaybackController(engine: engine, streamUriOf: resolveUri);
+
+    final beforeLogout = login();
+    await beforeLogout.playQueue(songs(1));
+    expect(engine.loadedIds, ['s0']);
+
+    await beforeLogout.dispose();
+    expect(engine.disposed, isFalse, reason: '登出不该带走引擎');
+
+    final afterLogin = login();
+    final playsBefore = engine.playCount;
+    await afterLogin.playQueue(songs(1));
+
+    expect(engine.loadedIds, ['s0', 's0'], reason: '曾静默无操作');
+    expect(engine.playCount, greaterThan(playsBefore));
+
+    await afterLogin.dispose();
   });
 }

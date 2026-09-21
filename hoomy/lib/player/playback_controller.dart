@@ -307,7 +307,10 @@ class PlaybackController extends ChangeNotifier {
   /// 切换随机模式。
   void setShuffle(bool enabled) => _machine.setShuffle(enabled);
 
-  /// 释放引擎与订阅。之后本对象不再可用。
+  /// 释放订阅，并让引擎停下（**不**释放引擎）。之后本对象不再可用。
+  ///
+  /// 引擎的寿命属于应用，不属于本对象；释放它会连累下一次登录，见
+  /// `PlaybackStateMachine.dispose()` 的说明。
   @override
   Future<void> dispose() async {
     _disposed = true;

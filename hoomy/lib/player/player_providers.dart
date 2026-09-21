@@ -27,7 +27,13 @@ final audioHandlerProvider = Provider<HoomyAudioHandler?>((ref) => null);
 /// 于是不构造 `just_audio` 平台插件、也不建控制器；生产恒为真实引擎，因此
 /// [playerControllerProvider] 里的 `engine == null` 分支只在测试里走。
 final playerEngineProvider = Provider<PlayerEngine?>(
-  (ref) => JustAudioPlayerEngine(),
+  (ref) {
+    final engine = JustAudioPlayerEngine();
+    // 引擎的释放归**本 provider**：它随应用生灭，不随会话生灭。机理与代价
+    // 见票据 07 与 `PlaybackStateMachine.dispose()`。
+    ref.onDispose(() => unawaited(engine.dispose()));
+    return engine;
+  },
 );
 
 /// 播放队列的持久化存储（票据 11）。
