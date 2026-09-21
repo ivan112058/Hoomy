@@ -39,7 +39,7 @@ void main() {
   Widget harness(Widget home, {HoomyFormFactor formFactor = HoomyFormFactor.tv, FakeTransport? transport, List<Override> overrides = const []}) =>
       ProviderScope(
         overrides: [
-          sessionProvider.overrideWithValue(
+          sessionOrNullProvider.overrideWithValue(
             fakeSession(transport ?? emptyLibraryTransport()),
           ),
           ...overrides,

@@ -56,13 +56,13 @@ class PlaybackAudioSession {
     if (event.begin) {
       switch (event.type) {
         case AudioInterruptionType.duck:
-          if (!_ducked && _controller.session.playing) {
+          if (!_ducked && _controller.snapshot.playing) {
             _ducked = true;
             unawaited(_controller.setVolume(_duckedVolume));
           }
         case AudioInterruptionType.pause:
         case AudioInterruptionType.unknown:
-          _wasPlaying = _controller.session.playing;
+          _wasPlaying = _controller.snapshot.playing;
           if (_wasPlaying) unawaited(_controller.pause());
       }
       return;

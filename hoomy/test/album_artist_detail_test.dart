@@ -42,7 +42,7 @@ void main() {
     CoverCache? coverCache,
   }) => ProviderScope(
     overrides: [
-      sessionProvider.overrideWithValue(fakeSession(transport)),
+      sessionOrNullProvider.overrideWithValue(fakeSession(transport)),
       coverCacheProvider.overrideWithValue(coverCache),
       if (controller != null)
         playerControllerProvider.overrideWithValue(controller),
@@ -274,9 +274,9 @@ void main() {
       await tester.tap(find.text('全部播放'));
       await tester.pumpAndSettle();
 
-      expect(controller.session.queue.queue.map((s) => s.id), ['s1', 's2']);
-      expect(controller.session.queue.currentIndex, 0);
-      expect(controller.session.queue.shuffle, isFalse);
+      expect(controller.snapshot.queue.queue.map((s) => s.id), ['s1', 's2']);
+      expect(controller.snapshot.queue.currentIndex, 0);
+      expect(controller.snapshot.queue.shuffle, isFalse);
       expect(engine.loadedIds, ['s1']);
       expect(engine.playCount, 1);
     });
@@ -297,9 +297,9 @@ void main() {
       await tester.tap(find.text('随机播放'));
       await tester.pumpAndSettle();
 
-      expect(controller.session.queue.shuffle, isTrue);
+      expect(controller.snapshot.queue.shuffle, isTrue);
       expect(
-        controller.session.queue.queue.map((s) => s.id).toSet(),
+        controller.snapshot.queue.queue.map((s) => s.id).toSet(),
         {'s1', 's2'},
         reason: '队列仍是整张专辑',
       );
@@ -461,8 +461,8 @@ void main() {
       await tester.tap(find.text('全部播放'));
       await tester.pumpAndSettle();
 
-      expect(controller.session.queue.queue.map((s) => s.id), ['as1', 'as2']);
-      expect(controller.session.queue.currentIndex, 0);
+      expect(controller.snapshot.queue.queue.map((s) => s.id), ['as1', 'as2']);
+      expect(controller.snapshot.queue.currentIndex, 0);
       expect(engine.loadedIds, ['as1']);
     });
 
@@ -482,9 +482,9 @@ void main() {
       await tester.tap(find.text('随机播放'));
       await tester.pumpAndSettle();
 
-      expect(controller.session.queue.shuffle, isTrue);
+      expect(controller.snapshot.queue.shuffle, isTrue);
       expect(
-        controller.session.queue.queue.map((s) => s.id).toSet(),
+        controller.snapshot.queue.queue.map((s) => s.id).toSet(),
         {'as1', 'as2'},
       );
       expect(engine.loadedIds, hasLength(1));

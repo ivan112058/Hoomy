@@ -145,9 +145,9 @@ class _PlaybackPageState extends ConsumerState<PlaybackPage> {
       body: SafeArea(
         child: PlaybackListenable(
           // 只关心「哪首、在不在播」：换歌才重建整页；进度条自己有边界。
-          select: (controller) => controller.session.identity,
+          select: (controller) => controller.snapshot.identity,
           builder: (context, controller) {
-            final song = controller.session.currentSong;
+            final song = controller.snapshot.currentSong;
             if (song == null) return const _EmptyPlayback();
             // 曲目身份用记录表示：队列重建产生的新对象不会让同一首重取歌词。
             final request = (
@@ -270,7 +270,7 @@ class _PlaybackTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final song = controller.session.currentSong;
+    final song = controller.snapshot.currentSong;
     return Row(
       children: [
         Expanded(
@@ -293,7 +293,7 @@ class _PlaybackTopBar extends StatelessWidget {
             onPressed: onToggleKeepAwake,
           ),
         PlaybackListenable(
-          select: (controller) => controller.session.queue.queue.length,
+          select: (controller) => controller.snapshot.queue.queue.length,
           builder: (context, controller) => HoomyIconButton(
             icon: Icons.queue_music,
             tooltip: '播放队列',
@@ -307,7 +307,7 @@ class _PlaybackTopBar extends StatelessWidget {
 
 /// 可拖动的进度条：当前时间 / 剩余时间，拖动松手即跳转。
 ///
-/// 进度来自引擎的 [PlaybackController.session.position]，每 ~200ms 一跳；
+/// 进度来自引擎的 [PlaybackController.snapshot.position]，每 ~200ms 一跳；
 /// 本部件是唯一跟着进度重建的边界，因此整页与中控按钮不陪着重绘。
 class _ProgressBar extends StatefulWidget {
   const _ProgressBar({required this.controller});
@@ -328,11 +328,11 @@ class _ProgressBarState extends State<_ProgressBar> {
     return ListenableBuilder(
       listenable: widget.controller,
       builder: (context, _) {
-        final session = widget.controller.session;
-        final duration = session.duration;
+        final snapshot = widget.controller.snapshot;
+        final duration = snapshot.duration;
         // 进度条的刻度取**秒**：调用处（含测试）读起来就是秒数，不必再换算。
         final total = duration?.inSeconds ?? 0;
-        final current = _dragging ?? session.position;
+        final current = _dragging ?? snapshot.position;
         final value = total <= 0
             ? 0.0
             : (current.inMilliseconds / 1000).clamp(0, total).toDouble();

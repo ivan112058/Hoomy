@@ -7,7 +7,8 @@ import '../player/playback_page.dart';
 /// 从主壳展开全屏播放页（点迷你播放条）。
 ///
 /// 手机底部 Tab 外壳与 TV 侧边导航外壳共用这一处：ADR-0013 只允许导航 chrome
-/// 分叉，接线逻辑两处各写一遍迟早会漂。没有控制器（未登录）时不做任何事。
+/// 分叉，接线逻辑两处各写一遍迟早会漂。没有控制器（没有会话，或测试里引擎被
+/// 置空）时不做任何事。
 void openPlaybackFromShell(BuildContext context, WidgetRef ref) {
   final controller = ref.read(playerControllerProvider);
   if (controller == null) return;

@@ -47,7 +47,7 @@ class QueueOverlayPage extends StatelessWidget {
         title: const Text('播放队列'),
         actions: [
           PlaybackListenable(
-            select: (controller) => controller.session.queue,
+            select: (controller) => controller.snapshot.queue,
             builder: (context, controller) => HoomyIconButton(
               icon: Icons.clear_all,
               tooltip: '清空即将播放',
@@ -58,7 +58,7 @@ class QueueOverlayPage extends StatelessWidget {
       ),
       body: PlaybackListenable(
         // 队列内容、当前曲目与模式变化才重建；进度不带着整份列表重绘。
-        select: (controller) => controller.session.queue,
+        select: (controller) => controller.snapshot.queue,
         builder: (context, controller) => _QueueBody(controller: controller),
       ),
     );
@@ -77,7 +77,7 @@ class _QueueBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final songs = controller.session.queue.queue;
+    final songs = controller.snapshot.queue.queue;
     if (songs.isEmpty) {
       return Center(
         child: Text(

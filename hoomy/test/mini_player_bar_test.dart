@@ -17,8 +17,8 @@ import 'fake_player_engine.dart';
 /// 票据 08 的界面验收：迷你播放条的呈现与控制。
 ///
 /// 迷你播放条只读 [PlaybackController] 的合并快照；这里用 [FakePlayerEngine]
-/// 驱动一个真实控制器，于是「引擎状态 → 条上显示什么」可以完整断言，
-/// 不依赖音频设备，也不需要 `subsonicClientProvider`（封面走占位）。
+/// 驱动一个真实控制器并直接注入，于是「引擎状态 → 条上显示什么」可以完整断言，
+/// 不依赖音频设备，也不需要会话（曲目没有封面 id，封面走占位）。
 void main() {
   Uri resolveUri(String id) =>
       Uri.parse('http://nas.local:4533/rest/stream.view?id=$id&format=raw');
@@ -271,9 +271,9 @@ void main() {
         child: MaterialApp(
           home: Scaffold(
             body: PlaybackListenable(
-              // 与迷你条同一口径（`PlaybackSession.identity`）：只关心
+              // 与迷你条同一口径（`PlaybackSnapshot.identity`）：只关心
               // 「哪首、在不在播」。
-              select: (controller) => controller.session.identity,
+              select: (controller) => controller.snapshot.identity,
               builder: (context, controller) {
                 rebuilds.count++;
                 return const SizedBox.shrink();

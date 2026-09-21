@@ -77,7 +77,7 @@ class LyricsView extends StatelessWidget {
                       // 换歌即换一份列表状态：不残留上一首的滚动位置与高亮行。
                       key: ValueKey(songId),
                       lyrics: data,
-                      position: controller.session.position,
+                      position: controller.snapshot.position,
                     ),
                   ),
           ),

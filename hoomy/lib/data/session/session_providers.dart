@@ -4,18 +4,35 @@ import '../lyrics/song_lyrics.dart';
 import '../subsonic/models.dart';
 import 'session.dart';
 
-/// 当前会话：取数的唯一入口（ADR-0015 决策 1）。
+/// 当前会话，**未登录时为 null**。
 ///
-/// **只由登录闸口注入**：闸口挂主界面时用嵌套作用域 override 出一个本地实例，
-/// 因此主界面之内会话在类型上不可能为空，页面与播放层都不必再判空，也不存在
-/// 「没有数据源」这种形态。
+/// 登录闸口在挂主界面时 override 它（`SessionScope`）；它是「当前有没有会话」
+/// 在 provider 层的**唯一注入点**，页面与取数要的非空形态由 [sessionProvider]
+/// 派生。
 ///
-/// 默认实现直接抛错：在闸口之外读到它，就说明不变量被破坏了 —— 外壳的统一
-/// 兜底据此给出可读原因与重试入口，而不是一片空白。抛 [StateError]（而不是
-/// `Exception`）是刻意的：Riverpod 不会自动重试一个 `Error`。
-final sessionProvider = Provider<Session>((ref) {
-  throw StateError('会话未注入：主界面只能挂在登录闸口之下');
-});
+/// 与 ADR-0015 决策 2 的张力（显式记录，不默默推翻）：决策 2 说「闸口是唯一
+/// 表达『无会话』的地方」。这里确实把「无会话」以 null 的形式露给了播放层，
+/// 但这是有意的 —— 票据 04 明确要求「未登录时控制器仍为空」，而播放层不是页面，
+/// 不存在「没有数据源就画空白」的问题，它只是没有可播放的地址。闸口仍是唯一的
+/// **注入**点，页面侧（[sessionProvider]）仍在类型上非空。
+final sessionOrNullProvider = Provider<Session?>((ref) => null);
+
+/// 当前会话（非空）：取数的唯一入口（ADR-0015 决策 1）。
+///
+/// 由 [sessionOrNullProvider] 派生。主界面之内会话在类型上不可能为空；闸口
+/// 之外读它就是「会话未注入」，这里如实抛出 —— 外壳的统一兜底据此给出可读
+/// 原因与重试入口，而不是一片空白。抛 [StateError]（而不是 `Exception`）是
+/// 刻意的：Riverpod 不会自动重试一个 `Error`。
+final sessionProvider = Provider<Session>(
+  (ref) {
+    final session = ref.watch(sessionOrNullProvider);
+    if (session == null) {
+      throw StateError('会话未注入：主界面只能挂在登录闸口之下');
+    }
+    return session;
+  },
+  dependencies: [sessionOrNullProvider],
+);
 
 /// 取数失败**不自动重试**。
 ///

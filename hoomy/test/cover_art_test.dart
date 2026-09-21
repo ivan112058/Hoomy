@@ -41,7 +41,7 @@ void main() {
   Widget harness(CoverCache? cache) => ProviderScope(
     overrides: [
       // 会话只用来拼带认证的封面地址，不发请求；缓存用自己的假 fetch。
-      sessionProvider.overrideWithValue(fakeSession(FakeTransport())),
+      sessionOrNullProvider.overrideWithValue(fakeSession(FakeTransport())),
       coverCacheProvider.overrideWithValue(cache),
     ],
     child: const MaterialApp(

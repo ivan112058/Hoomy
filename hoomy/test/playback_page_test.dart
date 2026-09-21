@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hoomy/core/theme/hoomy_theme.dart';
-import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/subsonic/models.dart';
 import 'package:hoomy/features/player/mini_player_bar.dart';
@@ -115,12 +114,10 @@ void main() {
           ],
         },
       });
-    final client = fakeClient(transport);
     return ProviderScope(
       overrides: [
-        // 曲库只来自会话（票据 02）；协议客户端仍供播放层与封面使用。
-        sessionProvider.overrideWithValue(fakeSession(transport)),
-        subsonicClientProvider.overrideWithValue(client),
+        // 曲库与两个地址都来自会话（票据 02／04）。
+        sessionOrNullProvider.overrideWithValue(fakeSession(transport)),
         playerControllerProvider.overrideWithValue(controller),
       ],
       child: MaterialApp(theme: hoomyLightTheme(), home: const HomeShell()),
@@ -194,29 +191,29 @@ void main() {
 
       await tester.tap(find.byTooltip('循环关闭'));
       await tester.pumpAndSettle();
-      expect(controller.session.queue.repeatMode, RepeatMode.all);
+      expect(controller.snapshot.queue.repeatMode, RepeatMode.all);
       expect(find.byTooltip('列表循环'), findsOneWidget);
 
       await tester.tap(find.byTooltip('列表循环'));
       await tester.pumpAndSettle();
-      expect(controller.session.queue.repeatMode, RepeatMode.one);
+      expect(controller.snapshot.queue.repeatMode, RepeatMode.one);
       expect(find.byTooltip('单曲循环'), findsOneWidget);
       expect(find.byIcon(Icons.repeat_one), findsOneWidget);
 
       await tester.tap(find.byTooltip('单曲循环'));
       await tester.pumpAndSettle();
-      expect(controller.session.queue.repeatMode, RepeatMode.off);
+      expect(controller.snapshot.queue.repeatMode, RepeatMode.off);
       expect(find.byTooltip('循环关闭'), findsOneWidget);
 
       // 随机开关切换的是状态机里的模式。
       await tester.tap(find.byTooltip('随机播放'));
       await tester.pumpAndSettle();
-      expect(controller.session.queue.shuffle, isTrue);
+      expect(controller.snapshot.queue.shuffle, isTrue);
       expect(find.byTooltip('关闭随机'), findsOneWidget);
 
       await tester.tap(find.byTooltip('关闭随机'));
       await tester.pumpAndSettle();
-      expect(controller.session.queue.shuffle, isFalse);
+      expect(controller.snapshot.queue.shuffle, isFalse);
     });
 
     testWidgets('进度条显示当前与剩余时间，拖动松手即跳转', (tester) async {
@@ -413,7 +410,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(engine.lastLoadedId, 's4');
-      expect(controller.session.currentSong?.id, 's4');
+      expect(controller.snapshot.currentSong?.id, 's4');
 
       // 已播放段跟着前移：原来的当前曲目进入已播放段。
       expect(controller.view.played.map((s) => s.id), ['s1', 's2', 's3']);
@@ -427,7 +424,7 @@ void main() {
       await controller.playQueue(library(), startIndex: 0);
       await tester.pumpAndSettle();
 
-      expect(controller.session.queue.queue.map((s) => s.id), [
+      expect(controller.snapshot.queue.queue.map((s) => s.id), [
         's1',
         's2',
         's3',
@@ -445,8 +442,8 @@ void main() {
       await gesture.up();
       await tester.pumpAndSettle();
 
-      expect(controller.session.queue.currentSong?.id, 's1');
-      expect(controller.session.queue.queue.map((s) => s.id), [
+      expect(controller.snapshot.queue.currentSong?.id, 's1');
+      expect(controller.snapshot.queue.queue.map((s) => s.id), [
         's1',
         's4',
         's2',
@@ -468,7 +465,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('即将播放'), findsNothing);
-      expect(controller.session.queue.queue.map((s) => s.id), ['s1', 's2']);
+      expect(controller.snapshot.queue.queue.map((s) => s.id), ['s1', 's2']);
       expect(find.text('晴天'), findsOneWidget);
       expect(find.text('以父之名'), findsOneWidget);
       // 清空后按钮不可再按。

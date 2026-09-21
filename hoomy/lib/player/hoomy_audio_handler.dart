@@ -124,7 +124,7 @@ class HoomyAudioHandler extends BaseAudioHandler {
 
   @override
   Future<void> stop() async {
-    // 系统要求停止：连队列一起清掉，系统和界面都回到「没有播放会话」，
+    // 系统要求停止：连队列一起清掉，系统和界面都回到「没有可播内容」，
     // 而不是系统显示 idle、界面还留着队列。
     await _controller?.playQueue(const []);
     await super.stop();
@@ -135,8 +135,8 @@ class HoomyAudioHandler extends BaseAudioHandler {
   void _broadcast({bool force = false}) {
     final controller = _controller;
     if (controller == null) return;
-    final session = controller.session;
-    final queueState = session.queue;
+    final snapshot = controller.snapshot;
+    final queueState = snapshot.queue;
 
     final queueIds = [for (final song in queueState.queue) song.id];
     if (!listEquals(queueIds, _lastQueueIds)) {
@@ -146,9 +146,9 @@ class HoomyAudioHandler extends BaseAudioHandler {
     }
 
     final signature = (
-      session.currentSong?.id,
-      session.playing,
-      session.engine.status,
+      snapshot.currentSong?.id,
+      snapshot.playing,
+      snapshot.engine.status,
       queueState.repeatMode,
       queueState.shuffle,
       queueState.currentIndex,
@@ -156,22 +156,22 @@ class HoomyAudioHandler extends BaseAudioHandler {
     if (!force && signature == _lastSignature) return;
     _lastSignature = signature;
 
-    final song = session.currentSong;
+    final song = snapshot.currentSong;
     mediaItem.add(
-      song == null ? null : _toMediaItem(song, duration: session.duration),
+      song == null ? null : _toMediaItem(song, duration: snapshot.duration),
     );
     playbackState.add(
       PlaybackState(
-        processingState: _processingState(session.engine.status),
-        playing: session.playing,
+        processingState: _processingState(snapshot.engine.status),
+        playing: snapshot.playing,
         controls: [
           MediaControl.skipToPrevious,
-          if (session.playing) MediaControl.pause else MediaControl.play,
+          if (snapshot.playing) MediaControl.pause else MediaControl.play,
           MediaControl.skipToNext,
         ],
         systemActions: const {MediaAction.seek},
-        updatePosition: session.position,
-        bufferedPosition: session.position,
+        updatePosition: snapshot.position,
+        bufferedPosition: snapshot.position,
         queueIndex: queueState.currentIndex < 0
             ? null
             : queueState.currentIndex,

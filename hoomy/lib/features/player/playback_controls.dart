@@ -24,13 +24,13 @@ class PlaybackControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return PlaybackListenable(
       select: (controller) => (
-        controller.session.queue.repeatMode,
-        controller.session.queue.shuffle,
-        controller.session.playing,
+        controller.snapshot.queue.repeatMode,
+        controller.snapshot.queue.shuffle,
+        controller.snapshot.playing,
       ),
       builder: (context, controller) {
-        final queue = controller.session.queue;
-        final playing = controller.session.playing;
+        final queue = controller.snapshot.queue;
+        final playing = controller.snapshot.playing;
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [

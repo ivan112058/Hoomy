@@ -56,15 +56,3 @@ final authProvider =
     AsyncNotifierProvider<AuthController, SubsonicCredentials?>(AuthController.new);
 
 final credentialStoreProvider = Provider<CredentialStore>((ref) => CredentialStore());
-
-/// 当前登录用户的 API 客户端；未登录时为 null。
-///
-/// 用应用唯一的 HTTP 传输（ADR-0015 决策 5）。
-final subsonicClientProvider = Provider<SubsonicClient?>((ref) {
-  final credentials = ref.watch(authProvider).value;
-  if (credentials == null) return null;
-  return SubsonicClient(
-    credentials: credentials,
-    dio: ref.watch(httpTransportProvider),
-  );
-});

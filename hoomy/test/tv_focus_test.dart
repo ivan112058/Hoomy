@@ -321,7 +321,7 @@ void main() {
         tvHarness(
           const AlbumDetailPage(album: SubsonicAlbum(id: 'al1', name: '叶惠美')),
           overrides: [
-            sessionProvider.overrideWithValue(fakeSession(albumTransport())),
+            sessionOrNullProvider.overrideWithValue(fakeSession(albumTransport())),
           ],
         ),
       );
@@ -384,7 +384,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
       await tester.pumpAndSettle();
 
-      expect(controller.session.queue.queue.map((s) => s.id), [
+      expect(controller.snapshot.queue.queue.map((s) => s.id), [
         's1',
         's2',
         's4',
@@ -394,7 +394,7 @@ void main() {
       // 再按右键退回：左右键是对称的。
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.pumpAndSettle();
-      expect(controller.session.queue.queue.map((s) => s.id), [
+      expect(controller.snapshot.queue.queue.map((s) => s.id), [
         's1',
         's2',
         's3',
@@ -483,7 +483,7 @@ void main() {
           const SongsPage(),
           overrides: [
             // 曲库只来自会话（票据 02）；播放控制器用假引擎驱动。
-            sessionProvider.overrideWithValue(fakeSession(transport)),
+            sessionOrNullProvider.overrideWithValue(fakeSession(transport)),
             playerControllerProvider.overrideWithValue(controller),
           ],
         ),
@@ -511,7 +511,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.select);
       await tester.pumpAndSettle();
       expect(engine.lastLoadedId, 's1');
-      expect(controller.session.queue.queue.map((s) => s.id), ['s1', 's2']);
+      expect(controller.snapshot.queue.queue.map((s) => s.id), ['s1', 's2']);
     });
   });
 }

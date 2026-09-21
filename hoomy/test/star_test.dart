@@ -47,7 +47,7 @@ void main() {
     PlaybackController? controller,
   }) => ProviderScope(
     overrides: [
-      sessionProvider.overrideWithValue(fakeSession(transport)),
+      sessionOrNullProvider.overrideWithValue(fakeSession(transport)),
       if (controller != null)
         playerControllerProvider.overrideWithValue(controller),
     ],

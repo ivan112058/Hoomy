@@ -105,13 +105,6 @@ ResponseBody textResponse(String body, {int statusCode = 200}) =>
       },
     );
 
-/// 只用来拼地址、不发请求的客户端。
-///
-/// 断言「播放地址」「封面地址」或缓存身份时用它：真实客户端的地址拼接照旧，
-/// 但传输是空的，不必每处各自造一个 `Dio()`。
-SubsonicClient addressOnlyClient() =>
-    SubsonicClient(credentials: testCredentials, dio: Dio());
-
 /// 用假传输构造客户端，测试过程不会发起真实网络请求。
 SubsonicClient fakeClient(
   FakeTransport transport, {
@@ -154,9 +147,10 @@ Session fakeSession(FakeTransport transport) => Session(
 
 /// 直接挂页面的渲染类用例的接线（票据 02 起）：只注入会话。
 ///
-/// 播放控制器一并置空：播放层仍走旧接线（票据 04 解耦），widget 测试里不该
-/// 因此去构造 `just_audio` 的平台插件；用例要验播放时自行 override 它。
+/// 播放控制器一并置空（票据 04 起播放层已与协议客户端无关，但默认实现仍会
+/// 构造 `just_audio` 的平台插件）：widget 测试里不该因此触达平台通道；用例要
+/// 验播放时自行 override 它。
 List<Override> sessionOverrides(FakeTransport transport) => [
-  sessionProvider.overrideWithValue(fakeSession(transport)),
+  sessionOrNullProvider.overrideWithValue(fakeSession(transport)),
   playerControllerProvider.overrideWithValue(null),
 ];

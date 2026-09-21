@@ -16,6 +16,7 @@ import 'package:hoomy/features/songs/songs_page.dart';
 import 'package:hoomy/main.dart';
 import 'package:hoomy/player/player_providers.dart';
 
+import 'fake_player_engine.dart';
 import 'fake_transport.dart';
 
 /// 登录闸口（票据 02）：唯一表达「有没有会话」的地方。
@@ -95,6 +96,26 @@ void main() {
     expect(find.text('连接 Navidrome'), findsOneWidget);
     expect(find.text('登录'), findsOneWidget);
     expect(find.text('播放列表'), findsNothing);
+  });
+
+  testWidgets('未登录时不构造播放引擎：没有会话就没有可播的内容', (tester) async {
+    var engineBuilt = false;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playerEngineProvider.overrideWith((ref) {
+            engineBuilt = true;
+            return FakePlayerEngine();
+          }),
+        ],
+        child: const HoomyApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('连接 Navidrome'), findsOneWidget);
+    expect(engineBuilt, isFalse, reason: '没有会话时不该有人去要播放引擎');
   });
 
   testWidgets('已登录时进入主壳并显示五个 Tab', (tester) async {

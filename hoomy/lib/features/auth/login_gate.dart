@@ -17,6 +17,9 @@ import 'login_page.dart';
 /// `home` 路由：闸口 push 出去的详情页、播放页在 Overlay 上是 home 路由的**兄弟**，
 /// 作用域只包 home 时它们读不到会话（票据 03 修正的缺陷）。
 ///
+/// 注入的是可空的 [sessionOrNullProvider]（[sessionProvider] 由它派生出非空
+/// 形态），播放层因此能如实看到「没有会话」并让控制器为空（票据 04）。
+///
 /// 没有凭据时不注入：登录页与「读取登录状态失败」都不需要会话。
 class SessionScope extends ConsumerStatefulWidget {
   const SessionScope({super.key, required this.child});
@@ -51,7 +54,9 @@ class _SessionScopeState extends ConsumerState<SessionScope> {
     final credentials = ref.watch(authProvider).value;
     if (credentials == null) return widget.child;
     return ProviderScope(
-      overrides: [sessionProvider.overrideWithValue(_sessionFor(credentials))],
+      overrides: [
+        sessionOrNullProvider.overrideWithValue(_sessionFor(credentials)),
+      ],
       child: widget.child,
     );
   }

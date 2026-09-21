@@ -48,7 +48,7 @@ class MiniPlayerBar extends StatelessWidget {
     return PlaybackListenable(
       // 迷你条只显示「哪首、在不在播」，不显示进度，所以不被每 ~200ms 的
       // 进度通知拖着重绘。
-      select: (controller) => controller.session.identity,
+      select: (controller) => controller.snapshot.identity,
       builder: (context, controller) =>
           _MiniPlayerBarBody(controller: controller, onTap: onTap),
     );
@@ -63,8 +63,8 @@ class _MiniPlayerBarBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = controller.session;
-    final song = session.currentSong;
+    final snapshot = controller.snapshot;
+    final song = snapshot.currentSong;
     // 没有当前曲目就不占位：导航之上不留空白。
     if (song == null) return const SizedBox.shrink();
     final palette = HoomyPalette.of(context);
@@ -102,8 +102,8 @@ class _MiniPlayerBarBody extends StatelessWidget {
                     onPressed: controller.previous,
                   ),
                   HoomyIconButton(
-                    icon: session.playing ? Icons.pause : Icons.play_arrow,
-                    tooltip: session.playing ? '暂停' : '播放',
+                    icon: snapshot.playing ? Icons.pause : Icons.play_arrow,
+                    tooltip: snapshot.playing ? '暂停' : '播放',
                     size: MiniPlayerBar._iconExtent,
                     iconSize: 22,
                     onPressed: controller.togglePlayPause,

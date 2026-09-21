@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:hoomy/core/theme/hoomy_theme.dart';
-import 'package:hoomy/data/auth/auth_controller.dart';
 import 'package:hoomy/data/session/session.dart';
 import 'package:hoomy/data/session/session_providers.dart';
 import 'package:hoomy/data/subsonic/models.dart';
@@ -72,11 +71,12 @@ void main() {
 
   /// 歌曲列表 + 迷你播放条，与 [HomeShell] 的形态一致。
   ///
-  /// 曲库只注入会话（票据 02）—— 歌曲页已不再读协议客户端；播放控制器由各
-  /// 用例用假引擎驱动。封面在无客户端时走占位图，与本文件的断言无关。
+  /// 曲库与两个地址都注入会话（票据 02／04）—— 页面与播放层都不再读协议
+  /// 客户端；播放控制器由各用例用假引擎驱动。封面地址的拼接不发请求，与
+  /// 本文件的断言无关。
   Widget harness(List<Override> overrides) => ProviderScope(
     overrides: [
-      sessionProvider.overrideWithValue(fakeSongsSession()),
+      sessionOrNullProvider.overrideWithValue(fakeSongsSession()),
       ...overrides,
     ],
     child: MaterialApp(
@@ -95,8 +95,7 @@ void main() {
   /// 主壳（真实 [HomeShell]）+ 假传输的曲库，用于验证迷你条的挂载位置。
   Widget shell(List<Override> overrides) => ProviderScope(
     overrides: [
-      sessionProvider.overrideWithValue(fakeSongsSession()),
-      subsonicClientProvider.overrideWithValue(fakeClient(FakeTransport())),
+      sessionOrNullProvider.overrideWithValue(fakeSongsSession()),
       ...overrides,
     ],
     child: MaterialApp(theme: hoomyLightTheme(), home: const HomeShell()),
@@ -293,8 +292,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          sessionProvider.overrideWithValue(fakeSongsSession()),
-          subsonicClientProvider.overrideWithValue(fakeClient(FakeTransport())),
+          sessionOrNullProvider.overrideWithValue(fakeSongsSession()),
           playerEngineProvider.overrideWithValue(engine),
           queueStoreProvider.overrideWithValue(store),
         ],
@@ -313,6 +311,11 @@ void main() {
     );
     expect(engine.loadedIds, ['s2']);
     expect(engine.seeks, [const Duration(seconds: 30)]);
+    // 地址来自**会话**（票据 04）：`format=raw` 与认证查询串都是会话拼的。
+    final uri = engine.lastLoadedUri!;
+    expect(uri.path, '/rest/stream.view');
+    expect(uri.queryParameters['format'], 'raw');
+    expect(uri.queryParameters['u'], testCredentials.username);
     expect(engine.playCount, 0, reason: '恢复后停在暂停态，不自动播放');
     expect(find.byTooltip('播放'), findsOneWidget);
 

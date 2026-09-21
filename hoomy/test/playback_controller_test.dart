@@ -17,10 +17,10 @@ import 'fake_transport.dart';
 /// 环境里不存在。用假引擎验证的是**接线**：地址怎么拼、状态怎么合、
 /// 错误怎么送到界面。
 void main() {
-  /// 与生产同源的解析器：真实 `SubsonicClient` 生成 `stream` 地址
-  /// （含 `format=raw` 与 `u`/`t`/`s` 认证查询串），Dio 传输不参与。
-  final client = addressOnlyClient();
-  Uri resolveUri(String id) => client.streamUri(id);
+  /// 播放地址来自**会话**（票据 04）：真会话 + 假传输，HTTP 不参与，
+  /// `stream` 地址的 `format=raw` 与 `u`/`t`/`s` 认证查询串照旧为生产拼法。
+  final session = fakeSession(FakeTransport());
+  Uri resolveUri(String id) => session.streamUri(id);
 
   List<SubsonicSong> songs(int count) => [
     for (var i = 0; i < count; i++)
@@ -60,8 +60,8 @@ void main() {
     test('队列、播放状态与进度合成一个快照', () async {
       final (:engine, :controller) = build();
 
-      expect(controller.session.hasSession, isFalse);
-      expect(controller.session.currentSong, isNull);
+      expect(controller.snapshot.hasQueue, isFalse);
+      expect(controller.snapshot.currentSong, isNull);
 
       await controller.playQueue(songs(3), startIndex: 1);
       engine.emitState(
@@ -74,13 +74,13 @@ void main() {
       engine.emitPosition(const Duration(seconds: 42));
       await pumpEventQueue();
 
-      final session = controller.session;
-      expect(session.hasSession, isTrue);
-      expect(session.currentSong?.id, 's1');
-      expect(session.playing, isTrue);
-      expect(session.position, const Duration(seconds: 42));
+      final snapshot = controller.snapshot;
+      expect(snapshot.hasQueue, isTrue);
+      expect(snapshot.currentSong?.id, 's1');
+      expect(snapshot.playing, isTrue);
+      expect(snapshot.position, const Duration(seconds: 42));
       // 引擎给的时长优先；缺省时回退服务端 metadata（180 秒）。
-      expect(session.duration, const Duration(seconds: 181));
+      expect(snapshot.duration, const Duration(seconds: 181));
 
       await controller.dispose();
     });
@@ -89,7 +89,7 @@ void main() {
       final (:engine, :controller) = build();
       await controller.playQueue(songs(1));
 
-      expect(controller.session.duration, const Duration(seconds: 180));
+      expect(controller.snapshot.duration, const Duration(seconds: 180));
 
       await controller.dispose();
     });
@@ -106,7 +106,7 @@ void main() {
       );
       await pumpEventQueue();
       expect(engine.playCount, 1);
-      expect(controller.session.playing, isTrue);
+      expect(controller.snapshot.playing, isTrue);
 
       // 正在播 → 第一次切换是暂停。
       await controller.togglePlayPause();
@@ -142,8 +142,8 @@ void main() {
       await pumpEventQueue();
 
       expect(notifications, greaterThanOrEqualTo(2));
-      expect(controller.session.position, const Duration(seconds: 5));
-      expect(controller.session.playing, isTrue);
+      expect(controller.snapshot.position, const Duration(seconds: 5));
+      expect(controller.snapshot.playing, isTrue);
 
       await controller.dispose();
     });
@@ -192,7 +192,7 @@ void main() {
       await controller.next();
 
       expect(controller.lastError, isNull);
-      expect(controller.session.currentSong?.id, 's1');
+      expect(controller.snapshot.currentSong?.id, 's1');
 
       await controller.dispose();
     });
@@ -227,8 +227,8 @@ void main() {
 
       await controller.playAt(3);
 
-      expect(controller.session.currentSong?.id, 's3');
-      expect(controller.session.queue.queue.map((s) => s.id), [
+      expect(controller.snapshot.currentSong?.id, 's3');
+      expect(controller.snapshot.queue.queue.map((s) => s.id), [
         's0',
         's1',
         's2',
@@ -251,13 +251,13 @@ void main() {
       controller.reorderUpcoming([upcoming.last, upcoming.first]);
       await pumpEventQueue();
 
-      expect(controller.session.queue.queue.map((s) => s.id), [
+      expect(controller.snapshot.queue.queue.map((s) => s.id), [
         's0',
         's1',
         's3',
         's2',
       ]);
-      expect(controller.session.currentSong?.id, 's1');
+      expect(controller.snapshot.currentSong?.id, 's1');
       expect(engine.loadedIds, hasLength(loadsBefore), reason: '重排不重新加载');
 
       await controller.dispose();
@@ -270,9 +270,9 @@ void main() {
       controller.clearUpcoming();
       await pumpEventQueue();
 
-      expect(controller.session.queue.queue.map((s) => s.id), ['s0', 's1']);
-      expect(controller.session.currentSong?.id, 's1');
-      expect(controller.session.hasSession, isTrue);
+      expect(controller.snapshot.queue.queue.map((s) => s.id), ['s0', 's1']);
+      expect(controller.snapshot.currentSong?.id, 's1');
+      expect(controller.snapshot.hasQueue, isTrue);
 
       await controller.dispose();
     });
@@ -355,7 +355,7 @@ void main() {
       expect(saved.queue[saved.currentIndex].id, 's1');
       expect(saved.position, Duration.zero, reason: '位置属于曲目，换歌后必须从头算');
       // 界面上的位置也回到起点，与快照一致。
-      expect(controller.session.position, Duration.zero);
+      expect(controller.snapshot.position, Duration.zero);
 
       await controller.dispose();
     });
@@ -426,13 +426,13 @@ void main() {
       await controller.restore();
       await pumpEventQueue();
 
-      final session = controller.session;
-      expect(session.hasSession, isTrue);
-      expect(session.queue.queue.map((s) => s.id), ['s0', 's1', 's2', 's3']);
-      expect(session.currentSong?.id, 's2');
-      expect(session.position, const Duration(seconds: 57));
-      expect(session.queue.repeatMode, RepeatMode.all);
-      expect(session.playing, isFalse, reason: '恢复后必须停在暂停态');
+      final snapshot = controller.snapshot;
+      expect(snapshot.hasQueue, isTrue);
+      expect(snapshot.queue.queue.map((s) => s.id), ['s0', 's1', 's2', 's3']);
+      expect(snapshot.currentSong?.id, 's2');
+      expect(snapshot.position, const Duration(seconds: 57));
+      expect(snapshot.queue.repeatMode, RepeatMode.all);
+      expect(snapshot.playing, isFalse, reason: '恢复后必须停在暂停态');
       expect(engine.loadedIds, ['s2']);
       expect(engine.seeks, [const Duration(seconds: 57)]);
       expect(engine.playCount, 0, reason: '不自动开始播放');
@@ -458,13 +458,13 @@ void main() {
       await second.controller.restore();
       await pumpEventQueue();
 
-      final session = second.controller.session;
-      expect(session.queue.queue.map((s) => s.id), ['s0', 's1', 's2', 's3', 's4']);
-      expect(session.currentSong?.id, 's1');
-      expect(session.position, const Duration(seconds: 88));
-      expect(session.queue.repeatMode, RepeatMode.one);
-      expect(session.queue.shuffle, isTrue);
-      expect(session.playing, isFalse);
+      final snapshot = second.controller.snapshot;
+      expect(snapshot.queue.queue.map((s) => s.id), ['s0', 's1', 's2', 's3', 's4']);
+      expect(snapshot.currentSong?.id, 's1');
+      expect(snapshot.position, const Duration(seconds: 88));
+      expect(snapshot.queue.repeatMode, RepeatMode.one);
+      expect(snapshot.queue.shuffle, isTrue);
+      expect(snapshot.playing, isFalse);
       expect(second.engine.playCount, 0);
 
       await second.controller.dispose();
@@ -474,15 +474,15 @@ void main() {
       final (:engine, :controller, :store) = buildPersistent();
 
       await controller.restore();
-      expect(controller.session.hasSession, isFalse);
+      expect(controller.snapshot.hasQueue, isFalse);
 
       SharedPreferences.setMockInitialValues({'playback_queue': '{坏数据'});
       final corrupted = buildPersistent();
       await corrupted.controller.restore();
       await pumpEventQueue();
 
-      expect(corrupted.controller.session.hasSession, isFalse);
-      expect(corrupted.controller.session.currentSong, isNull);
+      expect(corrupted.controller.snapshot.hasQueue, isFalse);
+      expect(corrupted.controller.snapshot.currentSong, isNull);
       expect(corrupted.engine.loadedIds, isEmpty);
       expect(corrupted.engine.playCount, 0);
 
@@ -506,8 +506,8 @@ void main() {
       await controller.restore();
       await pumpEventQueue();
 
-      expect(controller.session.currentSong?.id, 's2');
-      expect(controller.session.queue.queue.map((s) => s.id), ['s0', 's1', 's2']);
+      expect(controller.snapshot.currentSong?.id, 's2');
+      expect(controller.snapshot.queue.queue.map((s) => s.id), ['s0', 's1', 's2']);
       expect(engine.loadedIds, ['s2'], reason: '恢复不应再加载另一首');
 
       await controller.dispose();

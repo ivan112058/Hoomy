@@ -8,16 +8,17 @@ import 'package:hoomy/player/playback_state_machine.dart';
 import 'package:hoomy/player/player_engine.dart';
 
 import 'fake_player_engine.dart';
+import 'fake_transport.dart';
 
 /// 票据 07：`AudioHandler` 是播放状态的权威持有者。
 ///
 /// 这里不碰平台：`BaseAudioHandler` 的发布流是纯 Dart。验证三件事 ——
 /// 控制器由 handler 创建并持有、系统命令转发到同一个控制器、控制器状态发布给系统。
 void main() {
-  Uri resolveUri(String id) =>
-      Uri.parse('http://nas.local:4533/rest/stream.view?id=$id&format=raw');
-  Uri coverUri(String id) =>
-      Uri.parse('http://nas.local:4533/rest/getCoverArt.view?id=$id');
+  /// 两个地址都来自**会话**（票据 04）：真会话 + 假传输，HTTP 不参与。
+  final session = fakeSession(FakeTransport());
+  Uri resolveUri(String id) => session.streamUri(id);
+  Uri coverUri(String id) => session.coverArtUri(id);
 
   List<SubsonicSong> songs(int count) => [
     for (var i = 0; i < count; i++)
@@ -164,11 +165,11 @@ void main() {
       expect(engine.playCount, 2);
 
       await handler.skipToNext();
-      expect(controller.session.currentSong?.id, 's2');
+      expect(controller.snapshot.currentSong?.id, 's2');
       expect(engine.lastLoadedId, 's2');
 
       await handler.skipToPrevious();
-      expect(controller.session.currentSong?.id, 's1');
+      expect(controller.snapshot.currentSong?.id, 's1');
 
       await handler.seek(const Duration(seconds: 42));
       expect(engine.seeks.last, const Duration(seconds: 42));
@@ -184,7 +185,7 @@ void main() {
       await handler.stop();
 
       expect(engine.pauseCount, 1);
-      expect(controller.session.hasSession, isFalse, reason: '停止要连队列一起清掉');
+      expect(controller.snapshot.hasQueue, isFalse, reason: '停止要连队列一起清掉');
       expect(
         handler.playbackState.value.processingState,
         AudioProcessingState.idle,

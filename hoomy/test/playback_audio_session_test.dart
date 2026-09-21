@@ -71,7 +71,7 @@ void main() {
   test('pause 型打断：先暂停，打断结束后恢复', () async {
     final (:engine, :controller, :session) = build();
     await playing(engine, controller);
-    expect(controller.session.playing, isTrue);
+    expect(controller.snapshot.playing, isTrue);
 
     interruptions.add(
       AudioInterruptionEvent(true, AudioInterruptionType.pause),

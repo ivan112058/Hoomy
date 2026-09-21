@@ -11,7 +11,7 @@ import 'player_engine.dart';
 /// `just_audio` 的 `Player` 不出现在本文件之外。
 ///
 /// **认证走 URL 查询串**（Subsonic 原生方式），因此 [load] 不传 `headers`：
-/// `stream` 地址由 `SubsonicClient.streamUri` 生成，已带 `format=raw` 与
+/// `stream` 地址由会话（`Session.streamUri`）生成，已带 `format=raw` 与
 /// `u`/`t`/`s` 认证参数（ADR-0001 / ADR-0010）。
 ///
 /// 错误一律经 [errorStream] 上报，不抛出：调用方是状态机，它没有呈现错误的位置。

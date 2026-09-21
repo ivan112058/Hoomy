@@ -54,7 +54,7 @@ void main() {
     return ProviderScope(
       overrides: [
         playerControllerProvider.overrideWithValue(controller),
-        sessionProvider.overrideWithValue(fakeSession(transport)),
+        sessionOrNullProvider.overrideWithValue(fakeSession(transport)),
         if (screenAwake != null)
           screenAwakeProvider.overrideWithValue(screenAwake),
       ],

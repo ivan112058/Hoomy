@@ -30,7 +30,7 @@ void main() {
   }) {
     return ProviderScope(
       overrides: [
-        sessionProvider.overrideWithValue(fakeSession(transport)),
+        sessionOrNullProvider.overrideWithValue(fakeSession(transport)),
         if (controller != null)
           playerControllerProvider.overrideWithValue(controller),
       ],
@@ -142,11 +142,11 @@ void main() {
       expect(engine.loadedIds, ['s1']);
       expect(engine.playCount, 1);
       expect(
-        controller.session.queue.queue.map((s) => s.id),
+        controller.snapshot.queue.queue.map((s) => s.id),
         ['s1', 's2', 's3'],
         reason: '队列是整份播放列表，不是单曲',
       );
-      expect(controller.session.queue.currentIndex, 0);
+      expect(controller.snapshot.queue.currentIndex, 0);
 
       // 队列可继续推进：下一首就是播放列表的第二首。
       await controller.next();
@@ -175,8 +175,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(engine.lastLoadedId, 's2');
-      expect(controller.session.queue.currentIndex, 1);
-      expect(controller.session.queue.queue.map((s) => s.id), ['s1', 's2', 's3']);
+      expect(controller.snapshot.queue.currentIndex, 1);
+      expect(controller.snapshot.queue.queue.map((s) => s.id), ['s1', 's2', 's3']);
     });
 
     testWidgets('空播放列表显示可读文案而不是空白', (tester) async {
@@ -284,7 +284,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(engine.lastLoadedId, 's2');
-      expect(controller.session.queue.queue.map((s) => s.id), ['s1', 's2']);
+      expect(controller.snapshot.queue.queue.map((s) => s.id), ['s1', 's2']);
     });
 
     testWidgets('风格下没有曲目时显示可读文案', (tester) async {

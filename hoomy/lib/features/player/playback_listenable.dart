@@ -16,7 +16,7 @@ import '../../player/player_providers.dart';
 /// （迷你播放条与错误提示条都这么用）。列表这类「只关心当前曲目」的界面
 /// 请用 [CurrentSongIdBuilder]，它只在那一个 id 变化时才重建。
 ///
-/// 没有控制器（未登录）时不调用 [builder]。
+/// 没有控制器（没有会话 —— 未登录，或测试里引擎被置空）时不调用 [builder]。
 class PlaybackListenable extends ConsumerWidget {
   const PlaybackListenable({super.key, required this.builder, this.select});
 
@@ -110,7 +110,7 @@ class _SelectedListenableState extends State<_SelectedListenable> {
 /// 只在**当前播放曲目 id** 变化时重建的边界。
 ///
 /// 播放列表里「哪一行在播」只随当前曲目变，不该跟着进度每 ~200ms 重建整份
-/// 列表。[builder] 拿到 null 表示没有当前曲目（含未登录）。
+/// 列表。[builder] 拿到 null 表示没有当前曲目。
 class CurrentSongIdBuilder extends ConsumerWidget {
   const CurrentSongIdBuilder({super.key, required this.builder});
 

@@ -12,8 +12,8 @@ import 'stream_uri.dart';
 ///
 /// 队列、当前曲目、播放状态这些**离散**状态一变，它就变；而进度（每 ~200ms）
 /// 不影响它。迷你播放条与错误提示条据此只订阅关心的部分，不被进度拖着重建。
-class PlaybackSessionIdentity {
-  const PlaybackSessionIdentity({required this.songId, required this.playing});
+class PlaybackSnapshotIdentity {
+  const PlaybackSnapshotIdentity({required this.songId, required this.playing});
 
   /// 当前曲目 id；没有当前曲目时为 null。
   final String? songId;
@@ -23,7 +23,7 @@ class PlaybackSessionIdentity {
 
   @override
   bool operator ==(Object other) =>
-      other is PlaybackSessionIdentity &&
+      other is PlaybackSnapshotIdentity &&
       other.songId == songId &&
       other.playing == playing;
 
@@ -31,14 +31,15 @@ class PlaybackSessionIdentity {
   int get hashCode => Object.hash(songId, playing);
 
   @override
-  String toString() => 'PlaybackSessionIdentity($songId, playing: $playing)';
+  String toString() => 'PlaybackSnapshotIdentity($songId, playing: $playing)';
 }
 
 /// 界面用的播放状态快照：把状态机的队列状态与引擎的播放状态、进度合到一处。
 ///
+/// 与「会话」（一次已认证的服务器连接，见 `CONTEXT.md`）无关，这是**播放快照**：
 /// 界面只读这一个对象，不必分别订阅状态机与引擎的两条流。
-class PlaybackSession {
-  const PlaybackSession({
+class PlaybackSnapshot {
+  const PlaybackSnapshot({
     required this.queue,
     required this.engine,
     required this.position,
@@ -57,14 +58,14 @@ class PlaybackSession {
   bool get playing => engine.playing;
 
   /// 不含进度的状态标识：换歌或播放/暂停变化时与上一帧不等。
-  PlaybackSessionIdentity get identity =>
-      PlaybackSessionIdentity(songId: currentSong?.id, playing: playing);
+  PlaybackSnapshotIdentity get identity =>
+      PlaybackSnapshotIdentity(songId: currentSong?.id, playing: playing);
 
   /// 当前曲目总时长：优先用引擎给的（真实解码时长），回退服务端 metadata。
   Duration? get duration => engine.duration ?? _metadataDuration;
 
-  /// 是否已有播放会话（队列非空）。
-  bool get hasSession => queue.queue.isNotEmpty;
+  /// 队列非空：已经有可播放的内容。
+  bool get hasQueue => queue.queue.isNotEmpty;
 
   Duration? get _metadataDuration {
     final seconds = currentSong?.durationSec;
@@ -169,13 +170,13 @@ class PlaybackController extends ChangeNotifier {
   /// 覆盖刚读出来的位置），也不清零位置。
   bool _restoring = false;
 
-  /// 本次进程是否已经建立过播放会话（用户点歌或完成恢复）。
-  bool _sessionStarted = false;
+  /// 本次进程是否已经建立过播放快照（用户点歌或完成恢复）。
+  bool _playbackStarted = false;
 
   bool _disposed = false;
 
-  /// 当前播放状态。
-  PlaybackSession get session => PlaybackSession(
+  /// 当前播放状态快照。
+  PlaybackSnapshot get snapshot => PlaybackSnapshot(
     queue: _queueState,
     engine: _engineState,
     position: _position,
@@ -201,8 +202,8 @@ class PlaybackController extends ChangeNotifier {
   /// [songs] 是当前曲目所在的上下文（搜索结果／专辑曲目／歌手全部歌曲／
   /// 播放列表曲目），状态机据此连续播放。
   Future<void> playQueue(List<SubsonicSong> songs, {int startIndex = 0}) {
-    _sessionStarted = true;
-    // 新会话从起点开始：状态流是异步的，先把位置清零，免得把上一首/上一轮
+    _playbackStarted = true;
+    // 新队列从起点开始：状态流是异步的，先把位置清零，免得把上一首/上一轮
     // 的位置写进新队列的快照。
     _position = Duration.zero;
     _lastSavedPosition = Duration.zero;
@@ -224,30 +225,27 @@ class PlaybackController extends ChangeNotifier {
   /// 位置，**停在暂停态**。没有存储、没存过、数据损坏或队列为空时什么都不做，
   /// 界面从空队列开始。
   ///
-  /// 恢复要读盘再加载，期间用户可能已经点歌：加载完成后若会话已被用户接管
-  /// （[playQueue] 已跑过），这里不再写位置、也不重新标记会话 —— 恢复只是
-  /// 后台补齐，不能盖掉用户的操作。
+  /// 恢复要读盘再加载，期间用户可能已经点歌：加载完成后若播放已被用户接管
+  /// （[playQueue] 已跑过），这里不再写位置、也不重新标记 —— 恢复只是后台补齐，
+  /// 不能盖掉用户的操作。
   Future<void> restore() async {
     final store = _queueStore;
     if (store == null) return;
-    final snapshot = await store.read();
-    if (_disposed || snapshot == null || snapshot.queue.isEmpty) return;
-    if (_sessionStarted) return;
+    final saved = await store.read();
+    if (_disposed || saved == null || saved.queue.isEmpty) return;
+    if (_playbackStarted) return;
 
     _restoring = true;
     try {
-      await _machine.restore(
-        state: snapshot.state,
-        position: snapshot.position,
-      );
+      await _machine.restore(state: saved.state, position: saved.position);
     } finally {
       _restoring = false;
     }
 
-    if (_disposed || _sessionStarted) return;
-    _sessionStarted = true;
-    _position = snapshot.position;
-    _lastSavedPosition = snapshot.position;
+    if (_disposed || _playbackStarted) return;
+    _playbackStarted = true;
+    _position = saved.position;
+    _lastSavedPosition = saved.position;
     _publish();
   }
 
@@ -262,7 +260,7 @@ class PlaybackController extends ChangeNotifier {
   }
 
   /// 播放/暂停切换。
-  Future<void> togglePlayPause() => session.playing ? pause() : play();
+  Future<void> togglePlayPause() => snapshot.playing ? pause() : play();
 
   /// 下一首。
   Future<void> next() => _machine.next();
@@ -343,7 +341,7 @@ class PlaybackController extends ChangeNotifier {
     _persist();
   }
 
-  /// 把当前会话写成一份快照；队列为空则清掉持久化数据。
+  /// 把当前播放快照写成一份队列存档；队列为空则清掉持久化数据。
   ///
   /// [position] 缺省取界面所见的进度；seek 后引擎尚未上报新位置时，显式传入
   /// 跳转目标，避免把跳转前的位置写进快照。
